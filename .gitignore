@@ -1,0 +1,3 @@
+helpers/**/*.o
+helpers/**/bin/*
+!helpers/**/bin/.keep
