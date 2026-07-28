@@ -38,6 +38,16 @@ Default ships as: `glass · everforest · glass 0.66 · sonar+session+herd`.
 - **Menus ↔ spaces swap** — focused app's real menus, in-bar, one click away
 - **Per-space app icons**, media controls, volume device picker, calendar, battery — all popup-driven, zero hint text
 
+## Window manager fit
+
+The floating structures need the WM to reserve space:
+
+| structure | yabai setting |
+|---|---|
+| `glass` / `mono` | `yabai -m config external_bar all:52:0` |
+| `islands` | `yabai -m config external_bar all:54:0` |
+| `deck` | `yabai -m config external_bar all:0:58` |
+
 ## Credits
 
 Built on [SketchyBar](https://github.com/FelixKratz/SketchyBar) and [SbarLua](https://github.com/FelixKratz/SbarLua) by Felix Kratz.
