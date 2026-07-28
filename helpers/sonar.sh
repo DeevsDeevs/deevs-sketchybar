@@ -14,6 +14,9 @@ cat >"$cfg" <<'EOF'
 [general]
 bars = 1
 framerate = 12
+[input]
+method = portaudio
+source = auto
 [output]
 method = raw
 raw_target = /dev/stdout

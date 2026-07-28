@@ -7,8 +7,8 @@ readonly CONFIG_DIR="${CONFIG_DIR:-$HOME_DIR/.config/sketchybar}"
 readonly AUDIO_DEVICES_BIN="$CONFIG_DIR/helpers/audio_devices/bin/audio_devices"
 readonly BRACKET="widgets.volume"
 readonly POPUP_WIDTH=250
-readonly LABEL_GREY="0xff7f8490"
-readonly LABEL_WHITE="0xffe2e2e3"
+readonly LABEL_GREY="${LABEL_OFF:-0xff7f8490}"
+readonly LABEL_WHITE="${LABEL_ON:-0xffe2e2e3}"
 
 remove_items() {
   sketchybar --remove '/volume.device\..*/' >/dev/null 2>&1 || true

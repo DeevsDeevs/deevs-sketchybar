@@ -15,7 +15,6 @@ return function(ctx)
 
     local chip = sbar.add("item", "session", {
         position = "right",
-        drawing = false,
         updates = true,
         icon = { string = "󰔛", color = p.accent, font = { size = 13.0 } },
         label = { string = "", font = { family = ctx.settings.font.numbers } },
@@ -54,9 +53,9 @@ return function(ctx)
         sbar.exec(q(remaining_sql), function(out)
             local mins = tonumber(tostring(out):match("%-?%d+"))
             if mins and mins >= 0 then
-                chip:set({ drawing = true, label = { string = mins .. "m" } })
+                chip:set({ icon = { color = p.accent }, label = { string = mins .. "m" } })
             else
-                chip:set({ drawing = false, popup = { drawing = false } })
+                chip:set({ icon = { color = ctx.with_alpha(p.fg, 0.4) }, label = { string = "" } })
             end
         end)
     end

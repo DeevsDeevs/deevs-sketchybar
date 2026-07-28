@@ -2,13 +2,26 @@
 return function(ctx)
     local p, style = ctx.palette, ctx.style
 
-    local net = sbar.add("item", "system.net", {
+    local net_up = sbar.add("item", "system.net.up", {
         position = "right",
+        width = 0,
+        y_offset = 4,
+        icon = { drawing = false },
+        label = {
+            string = "↑ ---",
+            font = { family = ctx.settings.font.numbers, size = 8.0 },
+            color = ctx.with_alpha(p.fg, 0.55),
+        },
+        padding_left = 0,
+    })
+    local net_down = sbar.add("item", "system.net.down", {
+        position = "right",
+        y_offset = -4,
         icon = { drawing = false },
         label = {
             string = "↓ ---",
-            font = { family = ctx.settings.font.numbers, size = 9.0 },
-            color = ctx.with_alpha(p.fg, 0.65),
+            font = { family = ctx.settings.font.numbers, size = 8.0 },
+            color = ctx.with_alpha(p.accent2, 0.9),
         },
         padding_left = 0,
     })
@@ -34,12 +47,13 @@ return function(ctx)
         },
     })
 
-    sbar.add("bracket", "system.bracket", { cpu.name, ram.name, net.name }, {
+    sbar.add("bracket", "system.bracket", { cpu.name, ram.name, net_up.name, net_down.name }, {
         background = { color = style.item_bg, corner_radius = style.item_radius, height = style.item_height },
     })
     table.insert(ctx.groups.right, cpu.name)
     table.insert(ctx.groups.right, ram.name)
-    table.insert(ctx.groups.right, net.name)
+    table.insert(ctx.groups.right, net_up.name)
+    table.insert(ctx.groups.right, net_down.name)
 
     -- cpu: C event provider (compiled by install.sh)
     local cpu_bin = ctx.helper("event_providers/cpu_load/bin/cpu_load")
@@ -63,8 +77,9 @@ return function(ctx)
     if iface == "" then iface = "en0" end
     sbar.exec("killall network_load >/dev/null 2>&1; "
         .. ctx.detached(ctx.shell_quote(net_bin) .. " " .. ctx.shell_quote(iface) .. " network_update 2.0"))
-    net:subscribe("network_update", function(env)
-        net:set({ label = "↑" .. (env.upload or "?") .. " ↓" .. (env.download or "?") })
+    net_up:subscribe("network_update", function(env)
+        net_up:set({ label = "↑ " .. (env.upload or "---") })
+        net_down:set({ label = "↓ " .. (env.download or "---") })
     end)
 
     -- ram: cheap vm_stat poll

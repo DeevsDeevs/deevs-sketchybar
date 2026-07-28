@@ -29,7 +29,7 @@ media-control stream 2>/dev/null | while IFS= read -r line; do
 
   art="$(jq -r '.artworkData // empty' <<<"$payload")"
   if [[ -n "$art" ]]; then
-    printf '%s' "$art" | base64 -d >"$ART.tmp" 2>/dev/null && mv -f "$ART.tmp" "$ART"
+    printf '%s' "$art" | base64 -d >"$ART.tmp" 2>/dev/null && sips -Z 128 "$ART.tmp" >/dev/null 2>&1 && mv -f "$ART.tmp" "$ART"
   fi
 
   sig="$(jq -r '[.playing, .title, .artist, .bundleIdentifier] | @tsv' <<<"$state")"

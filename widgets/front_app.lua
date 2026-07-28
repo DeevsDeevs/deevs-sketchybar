@@ -59,7 +59,7 @@ return function(ctx)
 
     local function set_mode(mode)
         menu_mode = mode
-        sbar.set("/space\\..*/", { drawing = not mode })
+        sbar.exec("sketchybar --set '/space\\..*/' drawing=" .. (mode and "off" or "on"))
         front_app:set({ label = { color = mode and p.accent or p.fg } })
         if mode then
             update_menus()

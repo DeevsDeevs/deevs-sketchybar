@@ -58,6 +58,7 @@ return function(ctx)
     if media.cover then
         cover = sbar.add("item", "media.cover", {
             position = "right",
+            width = 32,
             background = { color = p.transparent },
             label = { drawing = false },
             icon = { drawing = false },
@@ -149,7 +150,7 @@ return function(ctx)
             cover:set({
                 drawing = true,
                 background = {
-                    image = { string = env.ART_PATH, scale = 0.05, corner_radius = 6 },
+                    image = { string = env.ART_PATH, scale = 0.22, corner_radius = 6 },
                     color = p.transparent,
                 },
             })
