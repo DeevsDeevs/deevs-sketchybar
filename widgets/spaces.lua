@@ -27,21 +27,23 @@ return function(ctx)
         local accent = c.mood and p.mood[((i - 1) % #p.mood) + 1] or p.accent
         local space = sbar.add("space", "space." .. i, {
             space = i,
+            padding_left = 3,
+            padding_right = 3,
             icon = {
                 string = i,
                 font = { family = ctx.settings.font.numbers },
                 color = ctx.with_alpha(p.fg, 0.55),
                 highlight_color = p.ink,
-                padding_left = 8,
-                padding_right = c.spaces.icons and 2 or 8,
+                padding_left = 10,
+                padding_right = c.spaces.icons and 4 or 10,
             },
             label = {
                 drawing = c.spaces.icons,
                 font = ctx.settings.font.app_icons,
                 color = ctx.with_alpha(p.fg, 0.5),
                 highlight_color = p.ink,
-                padding_left = 2,
-                padding_right = 8,
+                padding_left = 0,
+                padding_right = 10,
                 y_offset = -1,
             },
             background = { color = p.transparent, height = style.item_height, corner_radius = style.item_radius },
@@ -70,7 +72,7 @@ return function(ctx)
             no_app = false
             icon_line = icon_line .. (app_icons[app] or app_icons["Default"])
         end
-        if no_app then icon_line = " —" end
+        if no_app then icon_line = "—" end
         -- Spaces created after startup have no item yet; they appear on reload.
         local entry = spaces[tonumber(env.INFO.space)]
         if entry then entry.item:set({ label = icon_line }) end
