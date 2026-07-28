@@ -12,6 +12,7 @@ return function(ctx)
         label = { string = "—", font = { family = ctx.settings.font.numbers } },
         background = { color = style.item_bg, corner_radius = style.item_radius, height = style.item_height },
         update_freq = conf.poll or 5,
+        updates = true, -- keep polling even while hidden (0 agents), or it never returns
         popup = { align = "right" },
     })
     table.insert(ctx.groups.right, chip.name)

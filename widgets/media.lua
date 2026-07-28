@@ -2,14 +2,22 @@
 -- never push big payloads through the lua bridge). Optional cava sonar.
 -- NOTE: "media_change" is a RESERVED sketchybar event name; we use media_update.
 return function(ctx)
-    local p, c, style = ctx.palette, ctx.config, ctx.style
+    local p, c = ctx.palette, ctx.config
     local media = c.media
 
+    local function has_cava()
+        local f = io.popen("command -v cava 2>/dev/null")
+        local out = f and f:read("*a") or ""
+        if f then f:close() end
+        return out ~= ""
+    end
+
     local cover, sonar
-    if media.sonar then
+    if media.sonar and has_cava() then
         sonar = sbar.add("graph", "media.sonar", 30, {
             position = "right",
             drawing = false,
+            updates = true,
             graph = { color = p.accent, fill_color = ctx.with_alpha(p.accent, 0.25) },
             background = { height = 22, color = p.transparent, drawing = true },
             icon = { drawing = false },
@@ -18,9 +26,12 @@ return function(ctx)
         table.insert(ctx.groups.right, sonar.name)
     end
 
+    -- Two-line stack: title low, artist high; collapsed to width 0 by default,
+    -- expands while hovering the cover.
     local title = sbar.add("item", "media.title", {
         position = "right",
         drawing = false,
+        updates = true,
         padding_left = 3,
         padding_right = 0,
         icon = { drawing = false },
@@ -29,6 +40,7 @@ return function(ctx)
     local artist = sbar.add("item", "media.artist", {
         position = "right",
         drawing = false,
+        updates = true,
         padding_left = 3,
         padding_right = 0,
         width = 0,
@@ -42,6 +54,7 @@ return function(ctx)
         },
     })
 
+    local mc = "PATH=/opt/homebrew/bin:$PATH media-control "
     if media.cover then
         cover = sbar.add("item", "media.cover", {
             position = "right",
@@ -63,16 +76,34 @@ return function(ctx)
                 position = "popup." .. cover.name,
                 icon = { string = action.icon },
                 label = { drawing = false },
-                click_script = "media-control " .. action.cmd,
+                click_script = mc .. action.cmd,
             })
         end
 
+        local interrupt = 0
+        local function animate_detail(detail)
+            if not detail then interrupt = interrupt - 1 end
+            if interrupt > 0 and not detail then return end
+            artist:set({ label = { width = detail and "dynamic" or 0 } })
+            title:set({ label = { width = detail and "dynamic" or 0 } })
+        end
+
+        cover:subscribe("mouse.entered", function()
+            interrupt = interrupt + 1
+            animate_detail(true)
+        end)
+        cover:subscribe("mouse.exited", function()
+            animate_detail(false)
+        end)
         cover:subscribe("mouse.clicked", function()
             cover:set({ popup = { drawing = "toggle" } })
         end)
         title:subscribe("mouse.exited.global", function()
             cover:set({ popup = { drawing = false } })
         end)
+    else
+        title:set({ label = { width = "dynamic" } })
+        artist:set({ label = { width = "dynamic" } })
     end
     table.insert(ctx.groups.right, title.name)
     table.insert(ctx.groups.right, artist.name)
@@ -87,7 +118,7 @@ return function(ctx)
     end
 
     local function start_sonar()
-        if not media.sonar then return end
+        if not sonar then return end
         sbar.exec("pkill -f 'sketchybar/helpers/sonar.sh' >/dev/null 2>&1; "
             .. ctx.detached(ctx.shell_quote(ctx.helper("sonar.sh"))))
     end

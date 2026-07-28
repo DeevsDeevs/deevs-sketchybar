@@ -54,14 +54,15 @@ return function(ctx)
         cpu:set({ graph = { color = color }, label = { string = env.total_load .. "%", color = color } })
     end)
 
-    -- net: C event provider on the active interface
+    -- net: C event provider on the active interface (detected synchronously —
+    -- nested exec callbacks during config load get dropped)
     local net_bin = ctx.helper("event_providers/network_load/bin/network_load")
-    sbar.exec(ctx.shell_quote(ctx.helper("network_interface.sh")), function(iface)
-        iface = tostring(iface):gsub("%s+", "")
-        if iface == "" then iface = "en0" end
-        sbar.exec("killall network_load >/dev/null 2>&1; "
-            .. ctx.detached(ctx.shell_quote(net_bin) .. " " .. ctx.shell_quote(iface) .. " network_update 2.0"))
-    end)
+    local ih = io.popen(ctx.shell_quote(ctx.helper("network_interface.sh")) .. " 2>/dev/null")
+    local iface = ih and (ih:read("*a") or ""):gsub("%s+", "") or ""
+    if ih then ih:close() end
+    if iface == "" then iface = "en0" end
+    sbar.exec("killall network_load >/dev/null 2>&1; "
+        .. ctx.detached(ctx.shell_quote(net_bin) .. " " .. ctx.shell_quote(iface) .. " network_update 2.0"))
     net:subscribe("network_update", function(env)
         net:set({ label = "↑" .. (env.upload or "?") .. " ↓" .. (env.download or "?") })
     end)

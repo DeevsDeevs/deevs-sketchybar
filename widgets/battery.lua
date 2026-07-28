@@ -17,7 +17,7 @@ return function(ctx)
         label = { string = "??:??", width = 80, align = "right" },
     })
 
-    battery:subscribe({ "routine", "power_source_change", "system_woke" }, function()
+    battery:subscribe({ "forced", "routine", "power_source_change", "system_woke" }, function()
         sbar.exec("pmset -g batt", function(info)
             local found, _, charge = info:find("(%d+)%%")
             charge = found and tonumber(charge) or nil
