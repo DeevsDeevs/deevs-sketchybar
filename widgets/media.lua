@@ -85,8 +85,10 @@ return function(ctx)
         local function animate_detail(detail)
             if not detail then interrupt = interrupt - 1 end
             if interrupt > 0 and not detail then return end
-            artist:set({ label = { width = detail and "dynamic" or 0 } })
-            title:set({ label = { width = detail and "dynamic" or 0 } })
+            sbar.animate("tanh", 20, function()
+                artist:set({ label = { width = detail and "dynamic" or 0 } })
+                title:set({ label = { width = detail and "dynamic" or 0 } })
+            end)
         end
 
         cover:subscribe("mouse.entered", function()
@@ -110,6 +112,7 @@ return function(ctx)
     table.insert(ctx.groups.right, artist.name)
 
     local anchor = cover or title
+    local last_track = nil
     sbar.add("event", "media_update")
 
     local function start_stream()
@@ -120,7 +123,8 @@ return function(ctx)
 
     local function start_sonar()
         if not sonar then return end
-        sbar.exec("pkill -f 'sketchybar/helpers/sonar[.]sh' >/dev/null 2>&1; "
+        sbar.exec("pkill -f 'sketchybar/helpers/sonar[.]sh' >/dev/null 2>&1;"
+            .. " pkill -f 'cava -[p]' >/dev/null 2>&1; "
             .. ctx.detached(ctx.shell_quote(ctx.helper("sonar.sh"))))
     end
 
@@ -142,11 +146,20 @@ return function(ctx)
         if not cover then return end
         if not drawing then
             cover:set({ drawing = false, popup = { drawing = false } })
+            last_track = nil
+            return
+        end
+        -- Re-setting background.image on every event stacks draw layers
+        -- (the "fanned covers" artifact) — only set it when the track changes.
+        local track = (env.TITLE or "") .. "|" .. (env.ARTIST or "")
+        if track == last_track then
+            cover:set({ drawing = true })
             return
         end
         local f = env.ART_PATH and io.open(env.ART_PATH, "r")
         if f then
             f:close()
+            last_track = track
             cover:set({
                 drawing = true,
                 background = {

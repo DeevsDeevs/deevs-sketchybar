@@ -4,8 +4,7 @@ return function(ctx)
     local battery = sbar.add("item", "widgets.battery", {
         position = "right",
         icon = { font = { size = 14.0 } },
-        label = { font = { family = ctx.settings.font.numbers } },
-        background = { color = style.item_bg, corner_radius = style.item_radius, height = style.item_height },
+        label = { font = { family = ctx.settings.font.numbers }, color = ctx.with_alpha(p.fg, 0.8) },
         update_freq = 180,
         popup = { align = "center" },
     })

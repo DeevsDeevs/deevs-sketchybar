@@ -6,9 +6,9 @@ return function(ctx)
 
     local volume = sbar.add("item", "widgets.volume", {
         position = "right",
-        icon = { string = "\u{f057e}", font = { size = 13.0 } },
-        label = { string = "--%", font = { family = ctx.settings.font.numbers } },
-        background = { color = style.item_bg, corner_radius = style.item_radius, height = style.item_height },
+        icon = { string = "\u{f057e}", font = { size = 13.0 }, color = ctx.with_alpha(p.fg, 0.8) },
+        label = { string = "--%", font = { family = ctx.settings.font.numbers }, color = ctx.with_alpha(p.fg, 0.8) },
+        icon = { color = ctx.with_alpha(p.fg, 0.8) },
         popup = { align = "center" },
         click_script = popup_script,
     })

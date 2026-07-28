@@ -38,6 +38,33 @@ Default ships as: `glass · everforest · glass 0.66 · sonar+session+herd`.
 - **Menus ↔ spaces swap** — focused app's real menus, in-bar, one click away
 - **Per-space app icons**, media controls, volume device picker, calendar, battery — all popup-driven, zero hint text
 
+## Dependencies
+
+Two worlds, on purpose:
+
+| dep | channel | why |
+|---|---|---|
+| sketchybar, yabai, lua, jq, **cava** | devbox/nix | reproducible, synced to dotfiles |
+| [media-control](https://github.com/ungive/media-control) | brew | not packaged in nixpkgs |
+| [BlackHole 2ch](https://github.com/ExistentialAudio/BlackHole) | brew cask | it's an audio *driver* — only ships as a signed installer |
+
+### Sonar audio routing
+
+The sonar visualizes whatever cava hears. Out of the box that's the default
+input (microphone — reacts to your speakers ambiently). For a true
+system-audio tap, BlackHole is the chosen loopback (free, open source, the
+de-facto standard; Loopback/SoundSource are paid, Soundflower is abandoned):
+
+```sh
+brew install blackhole-2ch
+```
+
+Then **Audio MIDI Setup → + → Multi-Output Device** → check your speakers
+*and* BlackHole 2ch → set it as sound output. Set BlackHole 2ch as the
+*input* device (or leave `source = auto` in `helpers/sonar.sh` and make
+BlackHole the default input). Nix's cava build defaults to pulseaudio;
+`sonar.sh` already forces `portaudio`.
+
 ## Window manager fit
 
 The floating structures need the WM to reserve space:
