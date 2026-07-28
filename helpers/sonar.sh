@@ -6,7 +6,7 @@
 set -u
 export PATH="/usr/bin:/bin:/opt/homebrew/bin:$HOME/.local/share/devbox/global/default/.devbox/nix/profile/default/bin:$PATH"
 
-command -v cava >/dev/null 2>&1 || exit 0
+command -v cava >/dev/null 2>&1 || { echo "no cava in PATH=$PATH" >>/tmp/sonar-debug.log; exit 0; }
 
 cfg="$(mktemp "${TMPDIR:-/tmp}/sonar-cava.XXXXXX")"
 trap 'rm -f "$cfg"' EXIT HUP INT TERM

@@ -113,14 +113,14 @@ return function(ctx)
     sbar.add("event", "media_update")
 
     local function start_stream()
-        sbar.exec("pkill -f 'sketchybar/helpers/media_stream.sh' >/dev/null 2>&1;"
-            .. " pkill -f 'media-control stream' >/dev/null 2>&1; "
+        sbar.exec("pkill -f 'sketchybar/helpers/media_stream[.]sh' >/dev/null 2>&1;"
+            .. " pkill -f 'media-control strea[m]' >/dev/null 2>&1; "
             .. ctx.detached(ctx.shell_quote(ctx.helper("media_stream.sh"))))
     end
 
     local function start_sonar()
         if not sonar then return end
-        sbar.exec("pkill -f 'sketchybar/helpers/sonar.sh' >/dev/null 2>&1; "
+        sbar.exec("pkill -f 'sketchybar/helpers/sonar[.]sh' >/dev/null 2>&1; "
             .. ctx.detached(ctx.shell_quote(ctx.helper("sonar.sh"))))
     end
 
