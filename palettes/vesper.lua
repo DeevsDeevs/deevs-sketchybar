@@ -1,0 +1,15 @@
+return {
+    name = "vesper",
+    light = false,
+    bg = 0xff101010,
+    fg = 0xffa8a8a8,
+    ink = 0xff101010,
+    chip = 0x0cffffff,
+    accent = 0xffffc799,
+    accent2 = 0xff99ffe4,
+    good = 0xff99ffe4,
+    warn = 0xffffc799,
+    bad = 0xffff8080,
+    transparent = 0x00000000,
+    mood = { 0xffffc799, 0xff99ffe4, 0xffe0e0e0, 0xffff9999 },
+}

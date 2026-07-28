@@ -1,0 +1,15 @@
+return {
+    name = "mocha",
+    light = false,
+    bg = 0xff1e1e2e,
+    fg = 0xffcdd6f4,
+    ink = 0xff1e1e2e,
+    chip = 0x7245475a,
+    accent = 0xffb4befe,
+    accent2 = 0xfffab387,
+    good = 0xffa6e3a1,
+    warn = 0xfff9e2af,
+    bad = 0xfff38ba8,
+    transparent = 0x00000000,
+    mood = { 0xffb4befe, 0xfffab387, 0xffa6e3a1, 0xfff5c2e7 },
+}

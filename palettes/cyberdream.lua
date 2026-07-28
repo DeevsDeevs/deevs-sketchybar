@@ -1,0 +1,15 @@
+return {
+    name = "cyberdream",
+    light = false,
+    bg = 0xff16181a,
+    fg = 0xffdfe3e8,
+    ink = 0xff16181a,
+    chip = 0xff1e2124,
+    accent = 0xff5ef1ff,
+    accent2 = 0xffff5ef1,
+    good = 0xff5eff6c,
+    warn = 0xfff1ff5e,
+    bad = 0xffff6e5e,
+    transparent = 0x00000000,
+    mood = { 0xff5ef1ff, 0xffff5ef1, 0xff5eff6c, 0xffbd5eff },
+}

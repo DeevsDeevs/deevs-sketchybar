@@ -1,0 +1,15 @@
+return {
+    name = "kanagawa",
+    light = false,
+    bg = 0xff1f1f28,
+    fg = 0xffdcd7ba,
+    ink = 0xff16161d,
+    chip = 0x3854546d,
+    accent = 0xffe6c384,
+    accent2 = 0xff7e9cd8,
+    good = 0xff98bb6c,
+    warn = 0xffffa066,
+    bad = 0xffe46876,
+    transparent = 0x00000000,
+    mood = { 0xffe6c384, 0xffffa066, 0xff98bb6c, 0xff957fb8 },
+}

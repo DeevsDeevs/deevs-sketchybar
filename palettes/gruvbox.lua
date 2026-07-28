@@ -1,0 +1,15 @@
+return {
+    name = "gruvbox",
+    light = false,
+    bg = 0xff1d2021,
+    fg = 0xffd4be98,
+    ink = 0xff1d2021,
+    chip = 0xff32302f,
+    accent = 0xffe78a4e,
+    accent2 = 0xff89b482,
+    good = 0xffa9b665,
+    warn = 0xffd8a657,
+    bad = 0xffea6962,
+    transparent = 0x00000000,
+    mood = { 0xffe78a4e, 0xffd8a657, 0xffa9b665, 0xffd3869b },
+}

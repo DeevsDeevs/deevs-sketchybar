@@ -1,0 +1,15 @@
+return {
+    name = "poimandres",
+    light = false,
+    bg = 0xff1b1e28,
+    fg = 0xffa6accd,
+    ink = 0xff171922,
+    chip = 0x195de4c7,
+    accent = 0xff5de4c7,
+    accent2 = 0xff89ddff,
+    good = 0xff5fb3a1,
+    warn = 0xfffffac2,
+    bad = 0xffd0679d,
+    transparent = 0x00000000,
+    mood = { 0xff5de4c7, 0xfffffac2, 0xff89ddff, 0xffd0679d },
+}

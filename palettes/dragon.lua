@@ -1,0 +1,15 @@
+return {
+    name = "dragon",
+    light = false,
+    bg = 0xff181616,
+    fg = 0xffc5c9c5,
+    ink = 0xff181616,
+    chip = 0xff282727,
+    accent = 0xffc4b28a,
+    accent2 = 0xff8ba4b0,
+    good = 0xff87a987,
+    warn = 0xffc4b28a,
+    bad = 0xffc4746e,
+    transparent = 0x00000000,
+    mood = { 0xffc4b28a, 0xffc4746e, 0xff87a987, 0xff8992a7 },
+}

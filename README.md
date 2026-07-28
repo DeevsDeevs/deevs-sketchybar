@@ -2,7 +2,31 @@
 
 The layer above everything — a living, fully configurable [SketchyBar](https://github.com/FelixKratz/SketchyBar) setup — glass bar, real-nature wallpapers, and widgets that know what you're doing.
 
-> Under construction — being grown in the open. Prototyped interactively before a single line of lua was written.
+> Prototyped interactively before a single line of lua was written — the whole bar was designed in a clickable playground first.
+
+## Install
+
+```sh
+git clone https://github.com/DeevsDeevs/deevs-sketchybar ~/.config/sketchybar
+~/.config/sketchybar/install.sh     # builds helpers, installs SbarLua + app font
+brew services restart sketchybar    # or your service manager
+```
+
+## Configure
+
+Everything lives in [`config.lua`](config.lua) — **every widget is optional** and hides itself when its dependency is missing.
+
+| key | what | values |
+|---|---|---|
+| `structure` | bar shape | `glass` · `islands` · `deck` · `mono` |
+| `palette` | color world | 16 themes in [`palettes/`](palettes/) |
+| `glass` | bar translucency | `0.0`–`1.0` |
+| `media` | now playing | `cover`, `sonar` (cava), whitelist |
+| `herd` | agent fleet | `hosts` incl. SSH targets |
+| `session` | pomodoro | Session.app alias + deep links |
+| `mood` | per-space accents | `true` / `false` |
+
+Default ships as: `glass · everforest · glass 0.66 · sonar+session+herd`.
 
 ## What lives up here
 

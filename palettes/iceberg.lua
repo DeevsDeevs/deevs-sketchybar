@@ -1,0 +1,15 @@
+return {
+    name = "iceberg",
+    light = false,
+    bg = 0xff161821,
+    fg = 0xffc6c8d1,
+    ink = 0xff161821,
+    chip = 0xff1e2132,
+    accent = 0xff84a0c6,
+    accent2 = 0xff89b8c2,
+    good = 0xffb4be82,
+    warn = 0xffe2a478,
+    bad = 0xffe27878,
+    transparent = 0x00000000,
+    mood = { 0xff84a0c6, 0xffe2a478, 0xffb4be82, 0xffa093c7 },
+}

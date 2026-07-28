@@ -1,0 +1,15 @@
+return {
+    name = "dawn",
+    light = true,
+    bg = 0xfffaf4ed,
+    fg = 0xff575279,
+    ink = 0xfffaf4ed,
+    chip = 0x14575279,
+    accent = 0xffb4637a,
+    accent2 = 0xff907aa9,
+    good = 0xff56949f,
+    warn = 0xffea9d34,
+    bad = 0xffb4637a,
+    transparent = 0x00000000,
+    mood = { 0xffb4637a, 0xffea9d34, 0xff56949f, 0xff907aa9 },
+}

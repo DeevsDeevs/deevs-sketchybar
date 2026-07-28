@@ -1,0 +1,15 @@
+return {
+    name = "synthwave",
+    light = false,
+    bg = 0xff241b2f,
+    fg = 0xffe0d9f2,
+    ink = 0xff241b2f,
+    chip = 0xff2f2542,
+    accent = 0xffff7edb,
+    accent2 = 0xff36f9f6,
+    good = 0xff72f1b8,
+    warn = 0xfffede5d,
+    bad = 0xfffe4450,
+    transparent = 0x00000000,
+    mood = { 0xffff7edb, 0xffff8b39, 0xff72f1b8, 0xff36f9f6 },
+}

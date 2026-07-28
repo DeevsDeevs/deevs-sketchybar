@@ -1,0 +1,15 @@
+return {
+    name = "tokyo",
+    light = false,
+    bg = 0xff1a1b26,
+    fg = 0xffc0caf5,
+    ink = 0xff16161e,
+    chip = 0xff292e42,
+    accent = 0xff7aa2f7,
+    accent2 = 0xffbb9af7,
+    good = 0xff9ece6a,
+    warn = 0xffe0af68,
+    bad = 0xfff7768e,
+    transparent = 0x00000000,
+    mood = { 0xff7aa2f7, 0xffe0af68, 0xff9ece6a, 0xffbb9af7 },
+}

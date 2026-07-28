@@ -1,0 +1,15 @@
+return {
+    name = "aura",
+    light = false,
+    bg = 0xff15141b,
+    fg = 0xffedecee,
+    ink = 0xff15141b,
+    chip = 0xff211f2c,
+    accent = 0xffa277ff,
+    accent2 = 0xff61ffca,
+    good = 0xff61ffca,
+    warn = 0xffffca85,
+    bad = 0xffff6767,
+    transparent = 0x00000000,
+    mood = { 0xffa277ff, 0xffffca85, 0xff61ffca, 0xfff694ff },
+}

@@ -1,0 +1,15 @@
+return {
+    name = "everforest",
+    light = false,
+    bg = 0xff272e33,
+    fg = 0xffd3c6aa,
+    ink = 0xff272e33,
+    chip = 0xff374145,
+    accent = 0xffa7c080,
+    accent2 = 0xff83c092,
+    good = 0xffa7c080,
+    warn = 0xffdbbc7f,
+    bad = 0xffe67e80,
+    transparent = 0x00000000,
+    mood = { 0xffa7c080, 0xffdbbc7f, 0xff7fbbb3, 0xffd699b6 },
+}

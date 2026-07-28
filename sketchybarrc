@@ -1,0 +1,16 @@
+#!/usr/bin/env lua
+
+-- deevs-sketchybar entry point. CONFIG_DIR is provided by sketchybar.
+local config_dir = os.getenv("CONFIG_DIR") or (os.getenv("HOME") .. "/.config/sketchybar")
+package.path = config_dir .. "/?.lua;" .. config_dir .. "/?/init.lua;" .. package.path
+package.cpath = package.cpath .. ";" .. os.getenv("HOME") .. "/.local/share/sketchybar_lua/?.so"
+
+-- Clear module cache so `sketchybar --reload` picks up edits.
+for name in pairs(package.loaded) do
+    if name:match("^core") or name:match("^widgets") or name:match("^structures")
+        or name:match("^palettes") or name == "config" or name:match("^helpers") then
+        package.loaded[name] = nil
+    end
+end
+
+require("core.init")

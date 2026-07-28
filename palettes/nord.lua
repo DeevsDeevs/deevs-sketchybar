@@ -1,0 +1,15 @@
+return {
+    name = "nord",
+    light = false,
+    bg = 0xff2e3440,
+    fg = 0xffd8dee9,
+    ink = 0xff2e3440,
+    chip = 0xff3b4252,
+    accent = 0xff88c0d0,
+    accent2 = 0xff81a1c1,
+    good = 0xffa3be8c,
+    warn = 0xffebcb8b,
+    bad = 0xffbf616a,
+    transparent = 0x00000000,
+    mood = { 0xff88c0d0, 0xffebcb8b, 0xffa3be8c, 0xffb48ead },
+}

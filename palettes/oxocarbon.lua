@@ -1,0 +1,15 @@
+return {
+    name = "oxocarbon",
+    light = false,
+    bg = 0xff161616,
+    fg = 0xffdde1e6,
+    ink = 0xff161616,
+    chip = 0xff222222,
+    accent = 0xff3ddbd9,
+    accent2 = 0xffff7eb6,
+    good = 0xff42be65,
+    warn = 0xffd2a106,
+    bad = 0xfffa4d56,
+    transparent = 0x00000000,
+    mood = { 0xff3ddbd9, 0xff78a9ff, 0xff42be65, 0xffff7eb6 },
+}

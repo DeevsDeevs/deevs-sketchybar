@@ -1,0 +1,15 @@
+return {
+    name = "scarlet",
+    light = false,
+    bg = 0xff101116,
+    fg = 0xffe6dfe4,
+    ink = 0xff0d0b10,
+    chip = 0xff1c1418,
+    accent = 0xffff2e51,
+    accent2 = 0xff3dd6e8,
+    good = 0xff3dd6e8,
+    warn = 0xffffb454,
+    bad = 0xffff2e51,
+    transparent = 0x00000000,
+    mood = { 0xffff2e51, 0xffffb454, 0xff3dd6e8, 0xff9a5feb },
+}
