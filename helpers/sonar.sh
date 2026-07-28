@@ -6,17 +6,24 @@
 set -u
 export PATH="/usr/bin:/bin:/opt/homebrew/bin:$HOME/.local/share/devbox/global/default/.devbox/nix/profile/default/bin:$PATH"
 
-command -v cava >/dev/null 2>&1 || { echo "no cava in PATH=$PATH" >>/tmp/sonar-debug.log; exit 0; }
+command -v cava >/dev/null 2>&1 || exit 0
+
+# Prefer BlackHole when installed: taps system audio via a Multi-Output
+# Device without stealing the default input from the microphone.
+SRC="auto"
+if system_profiler SPAudioDataType 2>/dev/null | grep -q "BlackHole 2ch"; then
+  SRC="BlackHole 2ch"
+fi
 
 cfg="$(mktemp "${TMPDIR:-/tmp}/sonar-cava.XXXXXX")"
 trap 'rm -f "$cfg"' EXIT HUP INT TERM
-cat >"$cfg" <<'EOF'
+cat >"$cfg" <<EOF
 [general]
 bars = 1
 framerate = 12
 [input]
 method = portaudio
-source = auto
+source = ${SRC}
 [output]
 method = raw
 raw_target = /dev/stdout
