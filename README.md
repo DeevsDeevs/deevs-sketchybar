@@ -1,6 +1,6 @@
-# canopy 🌿
+# deevs-sketchybar 🌿
 
-The layer above everything. A living [SketchyBar](https://github.com/FelixKratz/SketchyBar) setup — glass bar, real-nature wallpapers, and widgets that know what you're doing.
+The layer above everything — a living, fully configurable [SketchyBar](https://github.com/FelixKratz/SketchyBar) setup — glass bar, real-nature wallpapers, and widgets that know what you're doing.
 
 > Under construction — being grown in the open. Prototyped interactively before a single line of lua was written.
 
