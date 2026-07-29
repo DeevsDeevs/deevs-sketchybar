@@ -1,7 +1,12 @@
 local M = {}
 
+-- `widget = true` / `widget = false` is as valid as a table: config.lua teaches
+-- the shorthand for mood and menus_swap, so accept it everywhere. Testing the
+-- type first matters — indexing .enabled on a boolean throws during config
+-- load, which takes down every widget after it and leaves a half-built bar.
 local function on(feature)
-    return feature and feature.enabled ~= false and feature ~= false
+    if type(feature) ~= "table" then return feature == true end
+    return feature.enabled ~= false
 end
 
 function M.load(ctx)

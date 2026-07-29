@@ -4,6 +4,8 @@ return function(ctx)
     local p, c, style = ctx.palette, ctx.config, ctx.style
     local spaces = {}
 
+    local max = (type(c.spaces) == "table" and c.spaces.max) or 10
+
     local function active_space_indices()
         local handle = io.popen("yabai -m query --spaces 2>/dev/null")
         local output = handle and handle:read("*a") or ""
@@ -18,14 +20,19 @@ return function(ctx)
         end
         table.sort(indices)
         if #indices == 0 then
-            for i = 1, c.spaces.max do table.insert(indices, i) end
+            for i = 1, max do table.insert(indices, i) end
         end
+        -- max is documented as a cap, so honour it for the yabai answer too;
+        -- it used to apply only to the no-yabai fallback and silently did
+        -- nothing on a working setup.
+        while #indices > max do table.remove(indices) end
         return indices
     end
 
     for _, i in ipairs(active_space_indices()) do
-        local accent = c.mood and p.mood[((i - 1) % #p.mood) + 1] or ctx.with_alpha(p.fg, 0.18)
-        local hi = c.mood and p.ink or p.fg
+        local ramp = p.mood or {}
+        local accent = (c.mood and #ramp > 0) and ramp[((i - 1) % #ramp) + 1] or ctx.with_alpha(p.fg, 0.18)
+        local hi = (c.mood and #ramp > 0) and p.ink or p.fg
         local space = sbar.add("space", "space." .. i, {
             space = i,
             padding_left = 3,
