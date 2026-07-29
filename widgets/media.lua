@@ -109,7 +109,7 @@ return function(ctx)
     table.insert(ctx.groups.right, artist.name)
     table.insert(ctx.groups.right, title.name)
 
-    local TEXT_W = 110   -- fits 16 chars at 11pt and 18 at 9pt
+    local TEXT_W = 128   -- 16 chars at 11pt overflowed a 110px box
     local mc = "PATH=/opt/homebrew/bin:$PATH media-control "
     local animate_detail = function() end   -- no-op unless the cover exists
     if cover then
@@ -152,13 +152,14 @@ return function(ctx)
         artist:set({ label = { width = TEXT_W } })
     end
 
-    -- One slab across the whole media cluster, hidden with it: the eq bars and
-    -- cover only draw while something is playing.
+    -- The slab covers only the always-on part. Including the hover text made
+    -- the bracket resize as the labels tweened, and a bracket recomputes its
+    -- extent in one step, so the glass visibly jumped out from under the sonar
+    -- while the text was still sliding. The text expands over the bar's own
+    -- glass instead.
     local members = {}
     for _, bar in ipairs(eq_bars or {}) do table.insert(members, bar.name) end
     if cover then table.insert(members, cover.name) end
-    table.insert(members, artist.name)
-    table.insert(members, title.name)
     local backdrop = ctx.chip("media.chip", members, { drawing = false })
 
     local anchor = cover or title
