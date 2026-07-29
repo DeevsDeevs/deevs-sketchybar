@@ -50,33 +50,51 @@ Two worlds, on purpose:
 | [media-control](https://github.com/ungive/media-control) | brew | not packaged in nixpkgs |
 | [BlackHole 2ch](https://github.com/ExistentialAudio/BlackHole) | brew cask | audio *driver*; routing is automated by `audio_devices` |
 
-### Sonar audio routing (automatic)
+### What the sonar needs
 
-The EQ needs to hear what you hear. Install the loopback once:
+The EQ bars are driven by cava, and cava can only listen to an *input*. To
+make it hear your music rather than your room, audio is routed through a
+loopback. Three things, once:
 
 ```sh
-brew install blackhole-2ch
-sudo killall coreaudiod     # load the driver without rebooting
+devbox global add cava        # or: brew install cava
+brew install blackhole-2ch    # the loopback driver
+sudo killall coreaudiod       # load the driver without rebooting
 ```
 
-Then set `audio.auto_route = true` in `config.lua`. Picking an output in the
-bar's volume popup builds a multi-output aggregate of *that device +
-BlackHole* and selects it: sound plays from the device you chose, cava reads
-the identical signal from BlackHole. Switch to AirPods, a monitor, speakers —
-click it in the bar and the sonar follows. Audio MIDI Setup is never involved,
-and BlackHole is hidden from the device list.
+Then in `config.lua`:
 
-macOS gives aggregate devices no hardware volume, which would normally leave
-the F-row volume keys dead while routing is on. `helpers/volume_keys` closes
-that gap: it taps the volume/mute keys and applies them to the real device
-beneath the aggregate, so the keys, the bar's volume chip and the slider all
-keep working. The tap only swallows a key while routing is active — otherwise
-events pass straight through to macOS.
+```lua
+media = { sonar = true },
+audio = { auto_route = true },
+```
 
-`audio_devices unroute` returns to a plain device immediately.
+From then on it is automatic. **Picking an output in the bar's volume popup**
+builds a multi-output aggregate of *that device + BlackHole* and selects it:
+sound plays from the device you picked, cava reads the identical signal from
+BlackHole. Switch to AirPods, a monitor, speakers — click it in the bar and
+the sonar follows. Audio MIDI Setup is never involved, and both BlackHole and
+the aggregate stay hidden from the device list.
 
-Without BlackHole the helper just sets the device directly and the EQ falls
-back to the default input (i.e. the microphone).
+`audio_devices unroute` drops back to a plain device at any time, and
+`audio_devices volume [level|+N|-N]` always targets the real device.
+
+Skip BlackHole and everything still works — the helper just sets devices
+directly and the EQ follows the default input (your microphone), which is
+only useful on speakers.
+
+#### Volume keys while routed
+
+Aggregate devices expose no volume of their own, so AppleScript reports
+`missing value` for them. macOS itself still drives the underlying device, so
+the F-row keys and the system HUD keep working — no extra piece required.
+
+If yours ever go dead while routed, set `audio.volume_keys = true`:
+`helpers/volume_keys` then taps the three volume keys and applies them to the
+real device beneath the aggregate, drawing the same system HUD through
+`OSDUIHelper`. It is off by default because nothing should sit in your input
+path unless it earns its place; it consumes only volume/mute, and every other
+media key passes through untouched.
 
 #### Why not driverless?
 
@@ -110,9 +128,15 @@ real binary (`~/.local/share/devbox/.../bin/sketchybar` for devbox/nix installs)
 then **fully restart** sketchybar — a `--reload` keeps the old permission state.
 Package updates change the binary and silently invalidate the grant.
 
-**Sonar flat / reacting to the room.** `audiotap` needs the "System Audio
-Recording" permission (prompted on first run). Without it, sonar falls back to
-cava on the default input, which is the microphone.
+**Sonar flat.** Nothing is reaching cava. Check in order: `cava` is installed,
+BlackHole shows up (`system_profiler SPAudioDataType | grep BlackHole`),
+`audio.auto_route = true`, and you have picked your output **from the bar's
+volume popup** at least once — that click is what builds the aggregate.
+
+**Sonar follows the room instead of the music.** BlackHole is missing or the
+output is not routed, so cava is on the microphone. Same checklist.
+
+**Volume keys dead while routed.** Set `audio.volume_keys = true` (see above).
 
 **Nothing reacts to clicks.** Check the bar isn't covered: `yabai -m config
 external_bar` must reserve at least the bar height plus its `y_offset`.
