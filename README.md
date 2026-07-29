@@ -68,10 +68,20 @@ Switching to a different output (AirPods, a monitor) leaves the Multi-Output,
 so the bars go flat until you switch back — a macOS limitation of loopback
 capture, not a bug here.
 
-`helpers/audiotap/` holds an **experimental** driverless alternative built on
-CoreAudio process taps (macOS 14.4+). It creates the tap and aggregate fine
-but the IO proc never delivers audio without a system-audio TCC grant that
-a CLI helper can't reliably obtain — kept for future work, not wired in.
+#### Why not driverless?
+
+Both Apple APIs for capturing system audio without a loopback were built and
+tested here, and neither delivers on macOS 15:
+
+- **CoreAudio process taps** (14.4+) — tap and aggregate device are created
+  successfully, but the IO proc only ever receives silence.
+- **ScreenCaptureKit** `capturesAudio` — the stream starts and *video* frames
+  arrive (proving Screen Recording is granted), yet audio sample buffers never
+  fire. Identical whether launched from a terminal, via `open`, or spawned by
+  sketchybar, so it isn't a TCC-parent problem.
+
+The ScreenCaptureKit implementation lives in `helpers/audiotap/` (FFT band
+analysis included) for when the OS side works; sonar runs on cava today.
 
 ## Window manager fit
 

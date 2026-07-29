@@ -9,7 +9,7 @@
     <key>CFBundleShortVersionString</key><string>1.0</string>
     <key>LSUIElement</key><true/>
     <key>LSBackgroundOnly</key><true/>
-    <key>NSAudioCaptureUsageDescription</key>
+    <key>NSScreenCaptureUsageDescription</key>
     <string>Visualizes system audio levels in the status bar.</string>
     <key>NSMicrophoneUsageDescription</key>
     <string>Visualizes system audio levels in the status bar.</string>

@@ -1,140 +1,176 @@
-// audiotap — prints system-audio output level (0..1) per line at ~12 Hz.
-// Uses CoreAudio process taps (macOS 14.4+): no loopback driver, no routing
-// changes; follows whatever output device is active. Needs the
-// "System Audio Recording" privacy permission on first run.
-// Usage: audiotap [--probe]   (--probe: exit 0 if capture works, else 1)
+// audiotap — prints N spectrum band levels (0..MAX) per line, ~15 Hz.
+//
+// Uses ScreenCaptureKit's system-audio capture (macOS 13+): no loopback
+// driver, no Audio MIDI Setup, and it would follow whatever output device is
+// active, because it taps the OS mix before the device.
+//
+// STATUS: not wired into sonar. On macOS 15 the stream starts and *video*
+// frames are delivered (so Screen Recording is granted), but audio sample
+// buffers never arrive — the same silent failure reported elsewhere for
+// SCK audio on 15.x. Verified identical whether launched from a terminal,
+// via `open`, or spawned by sketchybar itself, so it is not a TCC-parent
+// issue. Kept here for when the OS side is fixed; sonar uses cava today.
+//
+// Usage: audiotap [--bars N] [--max M] [--probe]
+//   --probe : exit 0 if capture is authorized and delivering audio, else 1
 
 import Foundation
-import CoreAudio
-import AudioToolbox
+import ScreenCaptureKit
+import AVFoundation
+import Accelerate
 
+func arg(_ name: String, _ fallback: Int) -> Int {
+    guard let i = CommandLine.arguments.firstIndex(of: name), i + 1 < CommandLine.arguments.count,
+          let v = Int(CommandLine.arguments[i + 1]) else { return fallback }
+    return v
+}
+
+let bars = max(1, arg("--bars", 12))
+let maxLevel = max(1, arg("--max", 16))
 let probe = CommandLine.arguments.contains("--probe")
 
-guard #available(macOS 14.4, *) else { exit(1) }
+let fftSize = 1024
+let log2n = vDSP_Length(10)
 
-// Tap the system mixdown (all processes).
-let tapDesc = CATapDescription(stereoGlobalTapButExcludeProcesses: [])
-tapDesc.muteBehavior = .unmuted
-tapDesc.isPrivate = true
-
-var tapID = AudioObjectID(kAudioObjectUnknown)
-var status = AudioHardwareCreateProcessTap(tapDesc, &tapID)
-FileHandle.standardError.write("tap status=\(status) id=\(tapID)\n".data(using:.utf8)!)
-guard status == noErr, tapID != kAudioObjectUnknown else { exit(1) }
-
-// The aggregate needs a real sub-device for its clock, otherwise the tap's
-// IOProc fires against empty buffers (silence) even when authorized.
-func defaultOutputUID() -> String? {
-    var devID = AudioObjectID(kAudioObjectUnknown)
-    var size = UInt32(MemoryLayout<AudioObjectID>.size)
-    var addr = AudioObjectPropertyAddress(
-        mSelector: kAudioHardwarePropertyDefaultOutputDevice,
-        mScope: kAudioObjectPropertyScopeGlobal,
-        mElement: kAudioObjectPropertyElementMain)
-    guard AudioObjectGetPropertyData(AudioObjectID(kAudioObjectSystemObject), &addr, 0, nil, &size, &devID) == noErr,
-          devID != kAudioObjectUnknown else { return nil }
-    var uid: CFString? = nil
-    var uidSize = UInt32(MemoryLayout<CFString?>.size)
-    addr.mSelector = kAudioDevicePropertyDeviceUID
-    guard AudioObjectGetPropertyData(devID, &addr, 0, nil, &uidSize, &uid) == noErr else { return nil }
-    return uid as String?
-}
-let outUID = defaultOutputUID()
-
-var aggDesc: [String: Any] = [
-    kAudioAggregateDeviceNameKey: "deevs-sonar-tap-\(getpid())",
-    kAudioAggregateDeviceUIDKey: "com.deevs.sketchybar.sonar-tap.\(getpid())",
-    kAudioAggregateDeviceIsPrivateKey: true,
-    kAudioAggregateDeviceIsStackedKey: false,
-    kAudioAggregateDeviceTapAutoStartKey: true,
-    kAudioAggregateDeviceSubDeviceListKey: [] as [[String: Any]],
-    kAudioAggregateDeviceTapListKey: [
-        [
-            kAudioSubTapUIDKey: tapDesc.uuid.uuidString,
-            kAudioSubTapDriftCompensationKey: true,
-        ]
-    ],
-]
-
-var aggID = AudioObjectID(kAudioObjectUnknown)
-status = AudioHardwareCreateAggregateDevice(aggDesc as CFDictionary, &aggID)
-FileHandle.standardError.write("agg status=\(status) id=\(aggID) outUID=\(outUID ?? "nil")\n".data(using:.utf8)!)
-guard status == noErr, aggID != kAudioObjectUnknown else {
-    AudioHardwareDestroyProcessTap(tapID)
-    exit(1)
-}
-
-final class Level: @unchecked Sendable {
+final class Spectrum: @unchecked Sendable {
     private let lock = NSLock()
-    private var value: Float = 0
-    private var seen = false
-    func update(_ v: Float) { lock.lock(); value = max(value, v); seen = true; lock.unlock() }
-    func take() -> Float { lock.lock(); let v = value; value = 0; lock.unlock(); return v }
-    var everSeen: Bool { lock.lock(); defer { lock.unlock() }; return seen }
-}
-let level = Level()
+    private var ring = [Float](repeating: 0, count: 1024)
+    private var filled = false
+    private var smoothed: [Float]
+    private let setup = vDSP_create_fftsetup(log2n, FFTRadix(kFFTRadix2))!
+    private let window: [Float]
 
-var procID: AudioDeviceIOProcID?
-status = AudioDeviceCreateIOProcIDWithBlock(&procID, aggID, nil) { _, inData, _, _, _ in
-    let buffers = UnsafeMutableAudioBufferListPointer(UnsafeMutablePointer(mutating: inData))
-    var sum: Float = 0
-    var count = 0
-    for buf in buffers {
-        guard let ptr = buf.mData else { continue }
-        let n = Int(buf.mDataByteSize) / MemoryLayout<Float>.size
-        let samples = ptr.bindMemory(to: Float.self, capacity: n)
-        var i = 0
-        while i < n {
-            sum += samples[i] * samples[i]
-            i += 8 // sparse sampling is plenty for a level meter
-            count += 1
+    init() {
+        smoothed = [Float](repeating: 0, count: bars)
+        var w = [Float](repeating: 0, count: fftSize)
+        vDSP_hann_window(&w, vDSP_Length(fftSize), Int32(vDSP_HANN_NORM))
+        window = w
+    }
+
+    func push(_ samples: UnsafePointer<Float>, _ n: Int) {
+        guard n > 0 else { return }
+        lock.lock()
+        defer { lock.unlock() }
+        if n >= fftSize {
+            for i in 0..<fftSize { ring[i] = samples[n - fftSize + i] }
+        } else {
+            let keep = fftSize - n
+            for i in 0..<keep { ring[i] = ring[i + n] }
+            for i in 0..<n { ring[keep + i] = samples[i] }
+        }
+        filled = true
+    }
+
+    // Log-spaced bands with a fast-attack / slow-release envelope.
+    func bands() -> [Int] {
+        lock.lock()
+        let input = ring
+        let have = filled
+        lock.unlock()
+        guard have else { return [Int](repeating: 0, count: bars) }
+
+        var windowed = [Float](repeating: 0, count: fftSize)
+        vDSP_vmul(input, 1, window, 1, &windowed, 1, vDSP_Length(fftSize))
+
+        var real = [Float](repeating: 0, count: fftSize / 2)
+        var imag = [Float](repeating: 0, count: fftSize / 2)
+        var magnitudes = [Float](repeating: 0, count: fftSize / 2)
+        real.withUnsafeMutableBufferPointer { rp in
+            imag.withUnsafeMutableBufferPointer { ip in
+                var split = DSPSplitComplex(realp: rp.baseAddress!, imagp: ip.baseAddress!)
+                windowed.withUnsafeBufferPointer { wp in
+                    wp.baseAddress!.withMemoryRebound(to: DSPComplex.self, capacity: fftSize / 2) {
+                        vDSP_ctoz($0, 2, &split, 1, vDSP_Length(fftSize / 2))
+                    }
+                }
+                vDSP_fft_zrip(setup, &split, 1, log2n, FFTDirection(FFT_FORWARD))
+                vDSP_zvabs(&split, 1, &magnitudes, 1, vDSP_Length(fftSize / 2))
+            }
+        }
+
+        let binCount = fftSize / 2
+        let minBin = 2.0, maxBin = Double(binCount - 1)
+        var out = [Int](repeating: 0, count: bars)
+        for b in 0..<bars {
+            let lo = minBin * pow(maxBin / minBin, Double(b) / Double(bars))
+            let hi = minBin * pow(maxBin / minBin, Double(b + 1) / Double(bars))
+            let l = Int(lo), h = max(Int(hi), Int(lo) + 1)
+            var peak: Float = 0
+            for i in l..<min(h, binCount) { peak = max(peak, magnitudes[i]) }
+            let scaled = log10(1 + peak * 0.02) * 1.9
+            let prev = smoothed[b]
+            let next = scaled > prev ? scaled : prev * 0.72 + scaled * 0.28
+            smoothed[b] = next
+            out[b] = min(maxLevel, Int((next * Float(maxLevel)).rounded()))
+        }
+        return out
+    }
+}
+
+let spectrum = Spectrum()
+let runLock = NSLock()
+var isRunning = false
+
+final class Output: NSObject, SCStreamOutput, SCStreamDelegate {
+    func stream(_ stream: SCStream, didOutputSampleBuffer buffer: CMSampleBuffer, of type: SCStreamOutputType) {
+        guard type == .audio, CMSampleBufferDataIsReady(buffer) else { return }
+        runLock.lock(); isRunning = true; runLock.unlock()
+        try? buffer.withAudioBufferList { list, _ in
+            guard let first = list.first, let data = first.mData else { return }
+            let n = Int(first.mDataByteSize) / MemoryLayout<Float>.size
+            spectrum.push(data.assumingMemoryBound(to: Float.self), n)
         }
     }
-    if count > 0 {
-        level.update(min(1.0, sqrtf(sum / Float(count)) * 3.0))
+    func stream(_ stream: SCStream, didStopWithError error: Error) { exit(1) }
+}
+
+let output = Output()
+
+Task {
+    do {
+        let content = try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: false)
+        guard let display = content.displays.first else { exit(1) }
+        let filter = SCContentFilter(display: display, excludingApplications: [], exceptingWindows: [])
+        let config = SCStreamConfiguration()
+        config.capturesAudio = true
+        config.excludesCurrentProcessAudio = true
+        config.sampleRate = 48000
+        config.channelCount = 2
+        // A real (if small) video size at a normal frame rate: SCStream stops
+        // delivering audio if the video side is starved.
+        config.width = 640
+        config.height = 360
+        config.minimumFrameInterval = CMTime(value: 1, timescale: 15)
+        config.queueDepth = 5
+        let stream = SCStream(filter: filter, configuration: config, delegate: output)
+        let q = DispatchQueue(label: "audiotap.capture")
+        try stream.addStreamOutput(output, type: .screen, sampleHandlerQueue: q)
+        try stream.addStreamOutput(output, type: .audio, sampleHandlerQueue: q)
+        try await stream.startCapture()
+    } catch {
+        FileHandle.standardError.write("capture failed: \(error)\n".data(using: .utf8)!)
+        exit(1)
     }
 }
-guard status == noErr, let procID else {
-    AudioHardwareDestroyAggregateDevice(aggID)
-    AudioHardwareDestroyProcessTap(tapID)
-    exit(1)
-}
-
-FileHandle.standardError.write("ioproc status=\(status)\n".data(using:.utf8)!)
-status = AudioDeviceStart(aggID, procID)
-FileHandle.standardError.write("start status=\(status)\n".data(using:.utf8)!)
-guard status == noErr else {
-    AudioHardwareDestroyAggregateDevice(aggID)
-    AudioHardwareDestroyProcessTap(tapID)
-    exit(1)
-}
-
-func cleanup() {
-    AudioDeviceStop(aggID, procID)
-    AudioDeviceDestroyIOProcID(aggID, procID)
-    AudioHardwareDestroyAggregateDevice(aggID)
-    AudioHardwareDestroyProcessTap(tapID)
-}
-// No signal handlers needed: private taps/aggregates are torn down by the
-// HAL when the owning process dies.
 
 if probe {
-    Thread.sleep(forTimeInterval: 0.8)
-    let ok = level.everSeen
-    cleanup()
-    exit(ok ? 0 : 1)
+    for _ in 0..<30 {
+        Thread.sleep(forTimeInterval: 0.1)
+        runLock.lock(); let ok = isRunning; runLock.unlock()
+        if ok { exit(0) }
+    }
+    exit(1)
 }
 
-// --out <path>: write to a file (used when launched via `open`, which has no stdout)
 var out: FileHandle = .standardOutput
 if let i = CommandLine.arguments.firstIndex(of: "--out"), i + 1 < CommandLine.arguments.count {
     let path = CommandLine.arguments[i + 1]
     FileManager.default.createFile(atPath: path, contents: nil)
-    out = FileHandle(forWritingAtPath: path) ?? .standardOutput
+    if let fh = FileHandle(forWritingAtPath: path) { out = fh }
 }
 setvbuf(stdout, nil, _IOLBF, 0)
 while true {
-    Thread.sleep(forTimeInterval: 0.085)
-    let line = String(format: "%.2f\n", level.take())
+    Thread.sleep(forTimeInterval: 0.066)
+    let line = spectrum.bands().map(String.init).joined(separator: ";") + "\n"
     out.write(line.data(using: .utf8)!)
 }
