@@ -75,6 +75,23 @@ The floating structures need the WM to reserve space:
 | `islands` | `yabai -m config external_bar all:54:0` |
 | `deck` | `yabai -m config external_bar all:0:58` |
 
+## Troubleshooting
+
+**Menus swap does nothing / menus are blank.** The `menus` helper needs
+Accessibility, and macOS grants it to the *spawning* process — which must be
+sketchybar itself (that's why the swap runs as a shell script, not from lua).
+Grant it under System Settings → Privacy & Security → Accessibility, pick the
+real binary (`~/.local/share/devbox/.../bin/sketchybar` for devbox/nix installs),
+then **fully restart** sketchybar — a `--reload` keeps the old permission state.
+Package updates change the binary and silently invalidate the grant.
+
+**Sonar flat / reacting to the room.** `audiotap` needs the "System Audio
+Recording" permission (prompted on first run). Without it, sonar falls back to
+cava on the default input, which is the microphone.
+
+**Nothing reacts to clicks.** Check the bar isn't covered: `yabai -m config
+external_bar` must reserve at least the bar height plus its `y_offset`.
+
 ## Credits
 
 Built on [SketchyBar](https://github.com/FelixKratz/SketchyBar) and [SbarLua](https://github.com/FelixKratz/SbarLua) by Felix Kratz.
