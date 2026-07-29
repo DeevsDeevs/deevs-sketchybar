@@ -69,39 +69,47 @@ return function(ctx)
         table.insert(ctx.groups.right, cover.name)
     end
 
-    -- Two-line stack: title low, artist high. Artist is the zero-width overlay
-    -- so the two share one horizontal band, which means it has to be created
-    -- AFTER title — a zero-width item draws from the same origin as whatever
-    -- follows it, and with artist next to the cover its label rendered straight
-    -- across the album art. Both collapse to 0 and expand on hover.
-    local title = sbar.add("item", "media.title", {
-        position = "right",
-        drawing = false,
-        updates = true,
-        padding_left = 3,
-        padding_right = 0,
-        icon = { drawing = false },
-        label = { font = { size = 11 }, width = 0, max_chars = 16, y_offset = -5 },
-    })
+    -- Two-line stack: artist high, title low, sharing one horizontal band.
+    -- Both labels must carry the SAME fixed width for that to work (the same
+    -- recipe the session chip uses): item width = 0 alone does not collapse
+    -- the artist, it just parks it beside the title at a different height,
+    -- which reads as two ragged lines. Expands from 0 on hover.
     local artist = sbar.add("item", "media.artist", {
         position = "right",
         drawing = false,
         updates = true,
-        padding_left = 3,
-        padding_right = 0,
         width = 0,
+        padding_left = 0,
+        padding_right = 0,
         icon = { drawing = false },
         label = {
             width = 0,
+            align = "left",
             font = { size = 9 },
             color = ctx.with_alpha(p.fg, 0.6),
             max_chars = 18,
             y_offset = 6,
         },
     })
-    table.insert(ctx.groups.right, title.name)
+    local title = sbar.add("item", "media.title", {
+        position = "right",
+        drawing = false,
+        updates = true,
+        padding_left = 0,
+        padding_right = 0,
+        icon = { drawing = false },
+        label = {
+            width = 0,
+            align = "left",
+            font = { size = 11 },
+            max_chars = 16,
+            y_offset = -5,
+        },
+    })
     table.insert(ctx.groups.right, artist.name)
+    table.insert(ctx.groups.right, title.name)
 
+    local TEXT_W = 110   -- fits 16 chars at 11pt and 18 at 9pt
     local mc = "PATH=/opt/homebrew/bin:$PATH media-control "
     local animate_detail = function() end   -- no-op unless the cover exists
     if cover then
@@ -126,8 +134,8 @@ return function(ctx)
             if detail == expanded then return end
             expanded = detail
             sbar.animate("tanh", 20, function()
-                artist:set({ label = { width = detail and "dynamic" or 0 } })
-                title:set({ label = { width = detail and "dynamic" or 0 } })
+                artist:set({ label = { width = detail and TEXT_W or 0 } })
+                title:set({ label = { width = detail and TEXT_W or 0 } })
             end)
         end
 
@@ -140,8 +148,8 @@ return function(ctx)
             cover:set({ popup = { drawing = false } })
         end)
     else
-        title:set({ label = { width = "dynamic" } })
-        artist:set({ label = { width = "dynamic" } })
+        title:set({ label = { width = TEXT_W } })
+        artist:set({ label = { width = TEXT_W } })
     end
 
     -- One slab across the whole media cluster, hidden with it: the eq bars and
