@@ -9,8 +9,12 @@ The layer above everything — a living, fully configurable [SketchyBar](https:/
 ```sh
 git clone https://github.com/DeevsDeevs/deevs-sketchybar ~/.config/sketchybar
 ~/.config/sketchybar/install.sh     # builds helpers, installs SbarLua + app font
-brew services restart sketchybar    # or your service manager
+sketchybar --reload                 # or start it however you run it
 ```
+
+`--reload` re-execs the config and is all you need after editing `config.lua`.
+The one exception is anything touching Accessibility (the menus swap): macOS
+pins that grant to the running process, so it needs a real restart.
 
 ## Configure
 

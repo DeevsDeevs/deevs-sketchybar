@@ -12,7 +12,7 @@ return function(ctx)
             font = { family = ctx.settings.font.numbers, size = 8.0 },
             color = ctx.with_alpha(p.fg, 0.55),
         },
-        padding_left = 0,
+        padding_left = 8,
     })
     local net_down = sbar.add("item", "system.net.down", {
         position = "right",
@@ -23,27 +23,28 @@ return function(ctx)
             font = { family = ctx.settings.font.numbers, size = 8.0 },
             color = ctx.with_alpha(p.accent2, 0.9),
         },
-        padding_left = 0,
+        padding_left = 8,
     })
     local ram = sbar.add("item", "system.ram", {
         position = "right",
-        icon = { string = "󰘚", font = { size = 11.0 }, color = ctx.with_alpha(p.fg, 0.6), padding_right = 2 },
+        icon = { string = "󰘚", font = { size = 11.0 }, color = ctx.with_alpha(p.fg, 0.6), padding_right = 3 },
         label = { string = "--", font = { family = ctx.settings.font.numbers, size = 10.0 } },
         update_freq = 10,
-        padding_left = 0,
+        padding_left = 8,
     })
     local cpu = sbar.add("graph", "system.cpu", 36, {
         position = "right",
-        graph = { color = p.accent },
+        -- an unset fill_color is opaque light grey: the sparkline renders as a
+        -- solid slab. Tint it from the line colour and thicken the line so the
+        -- curve reads on top of its own fill.
+        graph = { color = p.accent, fill_color = ctx.with_alpha(p.accent, 0.15), line_width = 1.0 },
         background = { height = 22, color = p.transparent, drawing = true },
         icon = { drawing = false },
         label = {
             string = "--%",
-            font = { family = ctx.settings.font.numbers, size = 9.0 },
-            align = "right",
-            padding_right = 4,
-            width = 32,
-            y_offset = 4,
+            font = { family = ctx.settings.font.numbers, size = 10.0 },
+            padding_left = 5,
+            padding_right = 0,
         },
     })
 
@@ -77,9 +78,21 @@ return function(ctx)
     if iface == "" then iface = "en0" end
     sbar.exec("killall network_load >/dev/null 2>&1; "
         .. ctx.detached(ctx.shell_quote(net_bin) .. " " .. ctx.shell_quote(iface) .. " network_update 2.0"))
+    -- The provider emits "%03d" plus a space-padded unit ("001KBps"). Trim both
+    -- to match the ram value's shape (13G), then pad the number back out: the
+    -- up row is a zero-width overlay on the down row, so the two only stay
+    -- aligned while they render the same width — which holds because the
+    -- numbers font is monospaced.
+    local unit = { [" Bps"] = "B", ["KBps"] = "K", ["MBps"] = "M" }
+    local function rate(raw)
+        local n, u = tostring(raw or ""):match("^(%d+)(.*)$")
+        if not n then return "  --" end
+        return string.format("%3d%s", tonumber(n), unit[u] or u)
+    end
+
     net_up:subscribe("network_update", function(env)
-        net_up:set({ label = "↑ " .. (env.upload or "---") })
-        net_down:set({ label = "↓ " .. (env.download or "---") })
+        net_up:set({ label = "↑ " .. rate(env.upload) })
+        net_down:set({ label = "↓ " .. rate(env.download) })
     end)
 
     -- ram: cheap vm_stat poll
