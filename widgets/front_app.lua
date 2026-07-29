@@ -39,7 +39,7 @@ return function(ctx)
     local swap = ctx.helper("menus_swap.sh")
 
     for i = 1, max_menus do
-        sbar.add("item", "menu." .. i, {
+        local slot = sbar.add("item", "menu." .. i, {
             position = "left",
             drawing = false,
             updates = true,
@@ -53,6 +53,9 @@ return function(ctx)
             -- slot i shows the (i+1)th menu: the app menu is the front_app label
             click_script = ctx.shell_quote(menus_bin) .. " -s " .. (i + 1),
         })
+        -- Without this the islands pod is built from ctx.groups.left only, and
+        -- menus mode renders the labels bare on the wallpaper with no pill.
+        table.insert(ctx.groups.left, slot.name)
     end
 
     front_app:set({ click_script = "MENU_SLOTS=" .. max_menus .. " " .. ctx.shell_quote(swap) })
