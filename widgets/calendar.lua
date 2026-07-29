@@ -1,5 +1,5 @@
 return function(ctx)
-    local p, style = ctx.palette, ctx.style
+    local p = ctx.palette
 
     local cal = sbar.add("item", "widgets.calendar", {
         position = "right",
@@ -14,6 +14,7 @@ return function(ctx)
         click_script = "open -a Calendar",
     })
     table.insert(ctx.groups.right, cal.name)
+    ctx.cluster("status", cal.name)
 
     cal:subscribe({ "forced", "routine", "system_woke" }, function()
         cal:set({ label = os.date("%a %d · %H:%M") })

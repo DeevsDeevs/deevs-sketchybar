@@ -9,7 +9,7 @@
 -- burns down, and a two-line stack of countdown over intent name. The stack
 -- is the zero-width overlay trick used by the network rows.
 return function(ctx)
-    local p, style = ctx.palette, ctx.style
+    local p = ctx.palette
 
     -- 0/8 … 8/8 — progress lives in the icon, since sketchybar can't draw a
     -- background under a chip (background.clip only applies to images, and a
@@ -65,10 +65,7 @@ return function(ctx)
         popup = { align = "center", horizontal = true },
     })
 
-    local bracket = sbar.add("bracket", "session.bracket", { icon.name, time.name, name.name }, {
-        background = { color = style.item_bg, corner_radius = style.item_radius, height = style.item_height },
-        drawing = false,
-    })
+    local bracket = ctx.chip("session.bracket", { icon.name, time.name, name.name }, { drawing = false })
 
     table.insert(ctx.groups.right, time.name)
     table.insert(ctx.groups.right, name.name)

@@ -141,6 +141,15 @@ return function(ctx)
         artist:set({ label = { width = "dynamic" } })
     end
 
+    -- One slab across the whole media cluster, hidden with it: the eq bars and
+    -- cover only draw while something is playing.
+    local members = {}
+    for _, bar in ipairs(eq_bars or {}) do table.insert(members, bar.name) end
+    if cover then table.insert(members, cover.name) end
+    table.insert(members, artist.name)
+    table.insert(members, title.name)
+    local backdrop = ctx.chip("media.chip", members, { drawing = false })
+
     local anchor = cover or title
     local last_track = nil
     sbar.add("event", "media_update")
@@ -182,6 +191,7 @@ return function(ctx)
         local playing = env.PLAYING == "true"
         local drawing = playing and whitelist[env.APP] or false
 
+        backdrop:set({ drawing = drawing })
         artist:set({ drawing = drawing, label = env.ARTIST })
         title:set({ drawing = drawing, label = env.TITLE })
         if eq_bars then

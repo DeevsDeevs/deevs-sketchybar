@@ -2,7 +2,7 @@
 -- Chip: ✳ + working count, red badge treatment when any agent is blocked.
 -- Popup: agents grouped needs-you → working → resting; click a row to focus.
 return function(ctx)
-    local p, style = ctx.palette, ctx.style
+    local p = ctx.palette
     -- `herd = true` and an omitted host list both mean "just this machine".
     local conf = type(ctx.config.herd) == "table" and ctx.config.herd or {}
     local hosts = conf.hosts or { { name = "local" } }
@@ -12,12 +12,12 @@ return function(ctx)
         position = "right",
         icon = { string = "✳", color = ctx.with_alpha(p.fg, 0.5), font = { size = 12.0 } },
         label = { string = "—", font = { family = ctx.settings.font.numbers } },
-        background = { color = style.item_bg, corner_radius = style.item_radius, height = style.item_height },
         update_freq = conf.poll or 5,
         updates = true, -- keep polling even while hidden (0 agents), or it never returns
         popup = { align = "right" },
     })
     table.insert(ctx.groups.right, chip.name)
+    local backdrop = ctx.chip("herd.chip", { chip.name })
 
     local function host_cmd(host)
         if host.ssh then
@@ -38,8 +38,10 @@ return function(ctx)
         end
         if total == 0 then
             chip:set({ drawing = false })
+            backdrop:set({ drawing = false })
             return
         end
+        backdrop:set({ drawing = true })
         chip:set({
             drawing = true,
             icon = { color = blocked > 0 and p.bad or (working > 0 and p.accent or ctx.with_alpha(p.fg, 0.5)) },

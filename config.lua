@@ -4,6 +4,7 @@ return {
     structure = "glass",     -- glass | islands | deck | mono
     palette   = "everforest",-- see palettes/
     glass     = 0.66,        -- bar translucency 0..1 (1 = opaque)
+    chips     = true,        -- rounded slab behind every widget; false = flat row
 
     bar = {
         height = 40,

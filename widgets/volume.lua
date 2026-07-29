@@ -1,5 +1,5 @@
 return function(ctx)
-    local p, style = ctx.palette, ctx.style
+    local p = ctx.palette
     local hex = function(color) return string.format("0x%08x", color) end
     local helper = ctx.shell_quote(ctx.helper("audio_devices/bin/audio_devices"))
     local auto_route = (ctx.config.audio or {}).auto_route
@@ -18,6 +18,7 @@ return function(ctx)
         update_freq = 5,
     })
     table.insert(ctx.groups.right, volume.name)
+    ctx.cluster("status", volume.name)
 
     local slider = sbar.add("slider", "widgets.volume.slider", 200, {
         position = "popup." .. volume.name,

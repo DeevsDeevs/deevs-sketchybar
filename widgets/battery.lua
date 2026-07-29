@@ -1,5 +1,5 @@
 return function(ctx)
-    local p, style = ctx.palette, ctx.style
+    local p = ctx.palette
 
     local battery = sbar.add("item", "widgets.battery", {
         position = "right",
@@ -9,6 +9,7 @@ return function(ctx)
         popup = { align = "center" },
     })
     table.insert(ctx.groups.right, battery.name)
+    ctx.cluster("status", battery.name)
 
     local remaining = sbar.add("item", {
         position = "popup." .. battery.name,

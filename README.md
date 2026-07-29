@@ -29,6 +29,7 @@ Any widget takes either a block or a bare boolean — `media = false` and
 | `structure` | bar shape | `glass` · `islands` · `deck` · `mono` |
 | `palette` | color world | 16 themes in [`palettes/`](palettes/) |
 | `glass` | bar translucency | `0.0`–`1.0` (`islands` clamps to ≥ 0.8; `mono` ignores it) |
+| `chips` | slab behind each widget group | `true` / `false` (flat row) |
 | `bar` | `height`, `icon` | the leftmost glyph |
 | `spaces` | per-space chips | `enabled`, `icons`, `max` (cap on how many are drawn) |
 | `media` | now playing | `enabled`, `cover`, `sonar`, `eq_bars`, `eq_height`, `whitelist` |

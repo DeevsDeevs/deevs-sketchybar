@@ -8,6 +8,7 @@ return function(ctx)
         update_freq = 30,
     })
     table.insert(ctx.groups.right, vpn.name)
+    ctx.cluster("status", vpn.name)
 
     vpn:subscribe({ "routine", "forced", "system_woke" }, function()
         -- Count only services actually reporting "(Connected)". The old probe

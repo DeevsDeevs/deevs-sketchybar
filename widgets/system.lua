@@ -1,6 +1,6 @@
 -- One system cluster: load-colored cpu sparkline + ram + net rates.
 return function(ctx)
-    local p, style = ctx.palette, ctx.style
+    local p = ctx.palette
 
     local net_up = sbar.add("item", "system.net.up", {
         position = "right",
@@ -63,9 +63,7 @@ return function(ctx)
         },
     })
 
-    sbar.add("bracket", "system.bracket", { cpu.name, ram.name, net_up.name, net_down.name }, {
-        background = { color = style.item_bg, corner_radius = style.item_radius, height = style.item_height },
-    })
+    ctx.chip("system.bracket", { cpu.name, ram.name, net_up.name, net_down.name })
     table.insert(ctx.groups.right, cpu.name)
     table.insert(ctx.groups.right, ram.name)
     table.insert(ctx.groups.right, net_up.name)

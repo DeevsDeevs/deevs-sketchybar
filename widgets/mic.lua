@@ -8,6 +8,7 @@ return function(ctx)
         update_freq = 20,
     })
     table.insert(ctx.groups.right, mic.name)
+    ctx.cluster("status", mic.name)
 
     local function render()
         sbar.exec("osascript -e 'input volume of (get volume settings)'", function(out)
