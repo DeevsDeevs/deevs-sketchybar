@@ -38,7 +38,7 @@ Default ships as: `glass · everforest · glass 0.66 · sonar+session+herd`.
 
 - **Sonar** — the bar hears your music: live cava spectrum in the media widget
 - **Herd** — mission control for AI agent fleets across local + SSH hosts (herdr integration): working counts, blocked-agent alerts, click-to-focus
-- **Session** — pomodoro chip with live countdown, progress underline and focus stats, wired into Session.app's deep links and database
+- **Session** — pomodoro chip with a live countdown over the intent name and a ring that fills as the block burns down; controls and focus stats wired to Session.app's deep links and database
 - **System cluster** — load-colored CPU sparkline, RAM, network in one bracket; per-core popup
 - **Mood ring** — every workspace has its own accent; the bar breathes with you
 - **Menus ↔ spaces swap** — focused app's real menus, in-bar, one click away
