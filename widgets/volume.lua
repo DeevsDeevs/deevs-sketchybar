@@ -46,7 +46,10 @@ return function(ctx)
             render(tonumber(tostring(out):match("%d+")))
         end)
     end
-    volume:subscribe("volume_change", function(env) render(tonumber(env.INFO)) end)
+    -- A routed aggregate reports 0 to macOS, so trust the helper instead.
+    volume:subscribe("volume_change", function(env)
+        if auto_route then refresh() else render(tonumber(env.INFO)) end
+    end)
     volume:subscribe({ "routine", "forced" }, refresh)
     refresh()
 
@@ -55,6 +58,13 @@ return function(ctx)
         if not (env.INFO.modifier == "ctrl") then delta = delta * 10.0 end
         sbar.exec(helper .. " volume " .. (delta > 0 and "+" or "") .. math.floor(delta), refresh)
     end)
+    -- While routed, the aggregate has no hardware volume, so the media keys
+    -- would be dead; this tap applies them to the real device instead.
+    if auto_route then
+        sbar.exec("pkill -f 'helpers/volume_keys/bin/volume_key[s]' >/dev/null 2>&1; "
+            .. ctx.detached(ctx.shell_quote(ctx.helper("volume_keys/bin/volume_keys"))))
+    end
+
     volume:subscribe("mouse.exited.global", function()
         volume:set({ popup = { drawing = false } })
         sbar.exec("sketchybar --remove '/volume.device\\..*/' >/dev/null 2>&1")

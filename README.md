@@ -64,12 +64,12 @@ the identical signal from BlackHole. Switch to AirPods, a monitor, speakers —
 click it in the bar and the sonar follows. Audio MIDI Setup is never involved,
 and BlackHole is hidden from the device list.
 
-**The trade-off:** macOS gives aggregate devices no hardware volume, so while
-routing is on the F-row volume keys do nothing — that is a platform
-limitation, not something a config can fix. The bar's volume chip still works
-(scroll it, or drag the slider in its popup), because `audio_devices volume`
-targets the real device underneath the aggregate. Routing is therefore
-**off by default**; turn it on only if you want the EQ more than the keys.
+macOS gives aggregate devices no hardware volume, which would normally leave
+the F-row volume keys dead while routing is on. `helpers/volume_keys` closes
+that gap: it taps the volume/mute keys and applies them to the real device
+beneath the aggregate, so the keys, the bar's volume chip and the slider all
+keep working. The tap only swallows a key while routing is active — otherwise
+events pass straight through to macOS.
 
 `audio_devices unroute` returns to a plain device immediately.
 
