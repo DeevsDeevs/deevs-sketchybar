@@ -7,14 +7,15 @@ return function(ctx)
         .. (auto_route and " ROUTE_FLAG=--route" or "")
         .. " " .. ctx.shell_quote(ctx.helper("volume_popup.sh"))
 
+    -- No click_script: an item that has one never forwards its mouse events to
+    -- the lua bridge, so mouse.exited.global would never fire and the popup
+    -- would stay open until clicked again. The helper is run from lua instead.
     local volume = sbar.add("item", "widgets.volume", {
         position = "right",
         icon = { string = "\u{f057e}", font = { size = 13.0 }, color = ctx.with_alpha(p.fg, 0.8) },
         label = { string = "--%", font = { family = ctx.settings.font.numbers }, color = ctx.with_alpha(p.fg, 0.8) },
-        icon = { color = ctx.with_alpha(p.fg, 0.8) },
         popup = { align = "center" },
         update_freq = 5,
-        click_script = popup_script,
     })
     table.insert(ctx.groups.right, volume.name)
 
@@ -66,8 +67,21 @@ return function(ctx)
             .. ctx.detached(ctx.shell_quote(ctx.helper("volume_keys/bin/volume_keys"))))
     end
 
-    volume:subscribe("mouse.exited.global", function()
+    local function close_popup()
         volume:set({ popup = { drawing = false } })
         sbar.exec("sketchybar --remove '/volume.device\\..*/' >/dev/null 2>&1")
+    end
+
+    -- The helper toggles by querying the live popup state rather than tracking
+    -- it here: clicking a device row closes the popup through the CLI, which a
+    -- lua-side flag would never see.
+    volume:subscribe("mouse.clicked", function(env)
+        if env.BUTTON == "right" then
+            sbar.exec("open /System/Library/PreferencePanes/Sound.prefpane")
+            return
+        end
+        sbar.exec(popup_script)
     end)
+
+    volume:subscribe("mouse.exited.global", close_popup)
 end

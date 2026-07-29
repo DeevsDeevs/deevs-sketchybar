@@ -23,8 +23,16 @@ show_message() {
       label="$message" label.color="$LABEL_GREY"
 }
 
-if [[ "${BUTTON:-left}" == "right" ]]; then
-  open /System/Library/PreferencePanes/Sound.prefpane
+popup_is_open() {
+  sketchybar --query "$BRACKET" 2>/dev/null \
+    | sed -n '/"popup"/,$p' | grep -m1 '"drawing"' | grep -q '"on"'
+}
+
+# Toggle against the live state, not a remembered one: picking a device closes
+# the popup straight through the CLI, so any cached flag would go stale.
+if popup_is_open; then
+  remove_items
+  sketchybar --set "$BRACKET" popup.drawing=off
   exit 0
 fi
 

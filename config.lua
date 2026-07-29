@@ -44,7 +44,7 @@ return {
         enabled = true,      -- Session.app pomodoro (needs Session.app)
     },
 
-    mood = false,            -- per-space accent colors
+    mood = true,             -- per-space accent colors
 
     volume   = { enabled = true },
 
