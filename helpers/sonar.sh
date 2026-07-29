@@ -2,10 +2,11 @@
 
 # Drives the media.eq.* bar cluster from cava.
 #
-# cava listens to the default INPUT device. For bars that follow your music
-# instead of the room, install a loopback (BlackHole 2ch) and make it the
-# input — see README. Nix's cava defaults to pulseaudio, so portaudio is
-# forced here.
+# cava reads BlackHole, which receives a copy of everything you play: the
+# audio_devices helper routes every output selection through a multi-output
+# aggregate of <your device + BlackHole>, so this keeps working across device
+# switches. Falls back to the default input when BlackHole isn't installed.
+# Nix's cava defaults to pulseaudio, so portaudio is forced here.
 
 set -u
 export PATH="/usr/bin:/bin:/opt/homebrew/bin:$HOME/.local/share/devbox/global/default/.devbox/nix/profile/default/bin:$PATH"

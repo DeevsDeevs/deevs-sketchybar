@@ -46,27 +46,26 @@ Two worlds, on purpose:
 |---|---|---|
 | sketchybar, yabai, lua, jq, **cava** | devbox/nix | reproducible, synced to dotfiles |
 | [media-control](https://github.com/ungive/media-control) | brew | not packaged in nixpkgs |
-| [BlackHole 2ch](https://github.com/ExistentialAudio/BlackHole) | brew cask | it's an audio *driver* — only ships as a signed installer |
+| [BlackHole 2ch](https://github.com/ExistentialAudio/BlackHole) | brew cask | audio *driver*; routing is automated by `audio_devices` |
 
-### Sonar audio routing
+### Sonar audio routing (automatic)
 
-The EQ bars follow whatever cava hears, which is the default **input** device.
-With no loopback that's the microphone — useless on headphones, and only
-ambient with speakers. For bars that follow the music itself you need a
-loopback; BlackHole is the pick (free, open source, the de-facto standard —
-Loopback/SoundSource are paid, Soundflower is abandoned):
+The EQ needs to hear what you hear. Install the loopback once:
 
 ```sh
 brew install blackhole-2ch
+sudo killall coreaudiod     # load the driver without rebooting
 ```
 
-Then **Audio MIDI Setup → + → Multi-Output Device** → check your output device
-*and* BlackHole 2ch → set that as sound output. `sonar.sh` auto-selects
-BlackHole as cava's source once it's installed.
+After that there is **nothing to configure, ever**. Picking an output in the
+bar's volume popup builds a private multi-output aggregate of *that device +
+BlackHole* and selects it: sound plays from the device you chose, cava reads
+the identical signal from BlackHole. Switch to AirPods, a monitor, speakers —
+click it in the bar and the sonar follows. Audio MIDI Setup is never involved,
+and BlackHole itself is hidden from the device list.
 
-Switching to a different output (AirPods, a monitor) leaves the Multi-Output,
-so the bars go flat until you switch back — a macOS limitation of loopback
-capture, not a bug here.
+Without BlackHole the helper just sets the device directly and the EQ falls
+back to the default input (i.e. the microphone).
 
 #### Why not driverless?
 
@@ -79,9 +78,6 @@ tested here, and neither delivers on macOS 15:
   arrive (proving Screen Recording is granted), yet audio sample buffers never
   fire. Identical whether launched from a terminal, via `open`, or spawned by
   sketchybar, so it isn't a TCC-parent problem.
-
-The ScreenCaptureKit implementation lives in `helpers/audiotap/` (FFT band
-analysis included) for when the OS side works; sonar runs on cava today.
 
 ## Window manager fit
 
