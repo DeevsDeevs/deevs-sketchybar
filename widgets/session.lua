@@ -1,6 +1,7 @@
--- Session.app pomodoro. State comes from helpers/session_query.sh, which reads
--- the live block from Session's preferences — the sqlite only gets a task row
--- once a block finishes, so it can never see what is running now.
+-- Session.app pomodoro. helpers/session_stream.sh pushes state in as
+-- session_update events; it reads the live block from Session's preferences,
+-- since the sqlite only gets a task row once a block finishes and so can never
+-- see what is running now.
 -- Controls via session:/// deep links. No alias — with the native menubar
 -- hidden, aliases capture a blank region.
 --
@@ -15,11 +16,6 @@ return function(ctx)
     -- slider always claims its own slot however narrow the item is).
     local PIE = { "󰝦", "󰪞", "󰪟", "󰪠", "󰪡", "󰪢", "󰪣", "󰪤", "󰪥" }
     local STACK_W = 72   -- fits a 14-char intent at 8pt
-
-    -- All the digging lives in helpers/session_query.sh. Long inline shell
-    -- strings proved unreliable through sbar.exec: the same query would return
-    -- an empty payload every few polls and blank the chip.
-    local query = ctx.shell_quote(ctx.helper("session_query.sh"))
 
     -- Countdown first and zero-width so the name below governs the width;
     -- the icon is created last so it lands to the left of the stack.
@@ -63,8 +59,8 @@ return function(ctx)
         label = { drawing = false },
         update_freq = 1,
         -- Must keep ticking while hidden: the default when_shown stops routine
-        -- events for an undrawn item, so once a session ended the chip would
-        -- never poll again and could never come back.
+        -- events for an undrawn item, so an idle chip would never redraw when
+        -- the next block starts.
         updates = true,
         popup = { align = "center", horizontal = true },
     })
@@ -79,6 +75,7 @@ return function(ctx)
     table.insert(ctx.groups.right, icon.name)
 
     local close = "; sketchybar --set " .. icon.name .. " popup.drawing=off"
+
     for _, action in ipairs({
         { glyph = "󰏤", link = "session:///pause" },
         { glyph = "󰅶", link = "session:///break" },
@@ -99,11 +96,13 @@ return function(ctx)
             click_script = "open " .. ctx.shell_quote(action.link) .. close,
         })
     end
+    -- Stays hidden until it holds real numbers: a placeholder in a row of
+    -- icons just reads as a glitch.
     local stats = sbar.add("item", {
         position = "popup." .. icon.name,
+        drawing = false,
         icon = { drawing = false },
         label = {
-            string = "…",
             font = { family = ctx.settings.font.numbers, size = 9.0 },
             color = ctx.with_alpha(p.fg, 0.5),
             padding_left = 8,
@@ -128,8 +127,8 @@ return function(ctx)
         if not present then icon:set({ popup = { drawing = false } }) end
     end
 
-    -- Rendered every second from cached values; sqlite is only re-read
-    -- periodically, so the countdown costs nothing between polls.
+    -- Runs every second off the cached deadline, so the countdown is smooth
+    -- between the coarser resyncs the stream sends.
     local function tick()
         if not deadline then return show("idle") end
         local left = deadline - os.time()
@@ -149,46 +148,44 @@ return function(ctx)
         show("running")
     end
 
-    local function poll()
-        sbar.exec(query .. " current", function(out)
-            local reply = tostring(out)
-            if reply:match("^NODB") then
-                deadline, total, kind = nil, nil, nil
-                return show("absent")
-            end
-            if reply:match("^IDLE") then
-                deadline, total, kind = nil, nil, nil
-                return show("idle")
-            end
-            local left, tot, ztype, zname = reply:match("^RUN\t(%-?%d+)\t(%d+)\t([^\t]*)\t(.-)%s*$")
-            -- Anything else is a dropped or crossed payload, not evidence that
-            -- Session is idle: keep counting down from the cached deadline
-            -- instead of blanking the chip.
-            if not left then return end
-            deadline = os.time() + tonumber(left)
-            total, kind = tonumber(tot), ztype
-            name:set({ label = { string = (zname ~= "" and zname or "focus") } })
-            tick()
-        end)
+    -- State arrives from helpers/session_stream.sh as session_update events.
+    -- Nothing here pulls: sbar.exec callbacks stop arriving after a few minutes
+    -- of polling, which froze the chip on whatever it last saw.
+    local function apply(env)
+        if env.STATE == "absent" then
+            deadline, total, kind = nil, nil, nil
+            return show("absent")
+        end
+        if env.TODAY_N then
+            local mins = tonumber(env.TODAY_MIN) or 0
+            stats:set({
+                drawing = true,
+                label = string.format("today %s · %dh %02dm",
+                    env.TODAY_N, math.floor(mins / 60), mins % 60),
+            })
+        end
+        if env.STATE ~= "run" then
+            deadline, total, kind = nil, nil, nil
+            return show("idle")
+        end
+        deadline = os.time() + (tonumber(env.LEFT) or 0)
+        total, kind = tonumber(env.TOTAL), env.KIND
+        name:set({ label = { string = (env.TITLE ~= "" and env.TITLE or "focus") } })
+        tick()
     end
 
-    local ticks = 0
-    icon:subscribe({ "routine", "forced" }, function()
-        ticks = ticks + 1
-        if ticks % 20 == 0 then poll() else tick() end
-    end)
-    icon:subscribe("system_woke", poll)
-    poll()
+    sbar.add("event", "session_update")
+    icon:subscribe("session_update", apply)
+    icon:subscribe({ "routine", "forced" }, tick)
+
+    local function start_stream()
+        sbar.exec("pkill -f 'sketchybar/helpers/session_stream[.]sh' >/dev/null 2>&1; "
+            .. ctx.detached(ctx.shell_quote(ctx.helper("session_stream.sh"))))
+    end
+    start_stream()
+    icon:subscribe("system_woke", start_stream)
 
     local function open_popup()
-        sbar.exec(query .. " today",
-            function(out)
-                local n, mins = tostring(out):match("(%d+)\t(%d+)")
-                if n then
-                    stats:set({ label = string.format("today %d · %dh %02dm",
-                        tonumber(n), math.floor(mins / 60), mins % 60) })
-                end
-            end)
         icon:set({ popup = { drawing = "toggle" } })
     end
 
