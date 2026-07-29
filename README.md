@@ -50,20 +50,28 @@ Two worlds, on purpose:
 
 ### Sonar audio routing
 
-The sonar visualizes whatever cava hears. Out of the box that's the default
-input (microphone — reacts to your speakers ambiently). For a true
-system-audio tap, BlackHole is the chosen loopback (free, open source, the
-de-facto standard; Loopback/SoundSource are paid, Soundflower is abandoned):
+The EQ bars follow whatever cava hears, which is the default **input** device.
+With no loopback that's the microphone — useless on headphones, and only
+ambient with speakers. For bars that follow the music itself you need a
+loopback; BlackHole is the pick (free, open source, the de-facto standard —
+Loopback/SoundSource are paid, Soundflower is abandoned):
 
 ```sh
 brew install blackhole-2ch
 ```
 
-Then **Audio MIDI Setup → + → Multi-Output Device** → check your speakers
-*and* BlackHole 2ch → set it as sound output. Set BlackHole 2ch as the
-*input* device (or leave `source = auto` in `helpers/sonar.sh` and make
-BlackHole the default input). Nix's cava build defaults to pulseaudio;
-`sonar.sh` already forces `portaudio`.
+Then **Audio MIDI Setup → + → Multi-Output Device** → check your output device
+*and* BlackHole 2ch → set that as sound output. `sonar.sh` auto-selects
+BlackHole as cava's source once it's installed.
+
+Switching to a different output (AirPods, a monitor) leaves the Multi-Output,
+so the bars go flat until you switch back — a macOS limitation of loopback
+capture, not a bug here.
+
+`helpers/audiotap/` holds an **experimental** driverless alternative built on
+CoreAudio process taps (macOS 14.4+). It creates the tap and aggregate fine
+but the IO proc never delivers audio without a system-audio TCC grant that
+a CLI helper can't reliably obtain — kept for future work, not wired in.
 
 ## Window manager fit
 

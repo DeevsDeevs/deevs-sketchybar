@@ -19,11 +19,31 @@ tapDesc.isPrivate = true
 
 var tapID = AudioObjectID(kAudioObjectUnknown)
 var status = AudioHardwareCreateProcessTap(tapDesc, &tapID)
+FileHandle.standardError.write("tap status=\(status) id=\(tapID)\n".data(using:.utf8)!)
 guard status == noErr, tapID != kAudioObjectUnknown else { exit(1) }
 
-let aggDesc: [String: Any] = [
-    kAudioAggregateDeviceNameKey: "deevs-sonar-tap",
-    kAudioAggregateDeviceUIDKey: "com.deevs.sketchybar.sonar-tap",
+// The aggregate needs a real sub-device for its clock, otherwise the tap's
+// IOProc fires against empty buffers (silence) even when authorized.
+func defaultOutputUID() -> String? {
+    var devID = AudioObjectID(kAudioObjectUnknown)
+    var size = UInt32(MemoryLayout<AudioObjectID>.size)
+    var addr = AudioObjectPropertyAddress(
+        mSelector: kAudioHardwarePropertyDefaultOutputDevice,
+        mScope: kAudioObjectPropertyScopeGlobal,
+        mElement: kAudioObjectPropertyElementMain)
+    guard AudioObjectGetPropertyData(AudioObjectID(kAudioObjectSystemObject), &addr, 0, nil, &size, &devID) == noErr,
+          devID != kAudioObjectUnknown else { return nil }
+    var uid: CFString? = nil
+    var uidSize = UInt32(MemoryLayout<CFString?>.size)
+    addr.mSelector = kAudioDevicePropertyDeviceUID
+    guard AudioObjectGetPropertyData(devID, &addr, 0, nil, &uidSize, &uid) == noErr else { return nil }
+    return uid as String?
+}
+let outUID = defaultOutputUID()
+
+var aggDesc: [String: Any] = [
+    kAudioAggregateDeviceNameKey: "deevs-sonar-tap-\(getpid())",
+    kAudioAggregateDeviceUIDKey: "com.deevs.sketchybar.sonar-tap.\(getpid())",
     kAudioAggregateDeviceIsPrivateKey: true,
     kAudioAggregateDeviceIsStackedKey: false,
     kAudioAggregateDeviceTapAutoStartKey: true,
@@ -38,6 +58,7 @@ let aggDesc: [String: Any] = [
 
 var aggID = AudioObjectID(kAudioObjectUnknown)
 status = AudioHardwareCreateAggregateDevice(aggDesc as CFDictionary, &aggID)
+FileHandle.standardError.write("agg status=\(status) id=\(aggID) outUID=\(outUID ?? "nil")\n".data(using:.utf8)!)
 guard status == noErr, aggID != kAudioObjectUnknown else {
     AudioHardwareDestroyProcessTap(tapID)
     exit(1)
@@ -79,7 +100,9 @@ guard status == noErr, let procID else {
     exit(1)
 }
 
+FileHandle.standardError.write("ioproc status=\(status)\n".data(using:.utf8)!)
 status = AudioDeviceStart(aggID, procID)
+FileHandle.standardError.write("start status=\(status)\n".data(using:.utf8)!)
 guard status == noErr else {
     AudioHardwareDestroyAggregateDevice(aggID)
     AudioHardwareDestroyProcessTap(tapID)
@@ -102,8 +125,16 @@ if probe {
     exit(ok ? 0 : 1)
 }
 
+// --out <path>: write to a file (used when launched via `open`, which has no stdout)
+var out: FileHandle = .standardOutput
+if let i = CommandLine.arguments.firstIndex(of: "--out"), i + 1 < CommandLine.arguments.count {
+    let path = CommandLine.arguments[i + 1]
+    FileManager.default.createFile(atPath: path, contents: nil)
+    out = FileHandle(forWritingAtPath: path) ?? .standardOutput
+}
 setvbuf(stdout, nil, _IOLBF, 0)
 while true {
     Thread.sleep(forTimeInterval: 0.085)
-    print(String(format: "%.2f", level.take()))
+    let line = String(format: "%.2f\n", level.take())
+    out.write(line.data(using: .utf8)!)
 }

@@ -12,18 +12,31 @@ return function(ctx)
         return out ~= ""
     end
 
-    local cover, sonar
+    -- EQ: a cluster of thin bars whose heights are driven by helpers/sonar.sh
+    local cover, eq_bars
+    local EQ_N = media.eq_bars or 12
     if media.sonar and has_cava() then
-        sonar = sbar.add("graph", "media.sonar", 30, {
-            position = "right",
-            drawing = false,
-            updates = true,
-            graph = { color = p.accent, fill_color = ctx.with_alpha(p.accent, 0.25) },
-            background = { height = 22, color = p.transparent, drawing = true },
-            icon = { drawing = false },
-            label = { drawing = false },
-        })
-        table.insert(ctx.groups.right, sonar.name)
+        eq_bars = {}
+        for i = 1, EQ_N do
+            local bar = sbar.add("item", "media.eq." .. i, {
+                position = "right",
+                drawing = false,
+                updates = true,
+                width = 3,
+                padding_left = 1,
+                padding_right = 1,
+                icon = { drawing = false },
+                label = { drawing = false },
+                background = {
+                    drawing = true,
+                    color = ctx.with_alpha(p.accent, 0.9),
+                    height = 2,
+                    corner_radius = 1,
+                },
+            })
+            eq_bars[i] = bar
+            table.insert(ctx.groups.right, bar.name)
+        end
     end
 
     -- Two-line stack: title low, artist high; collapsed to width 0 by default,
@@ -122,7 +135,7 @@ return function(ctx)
     end
 
     local function start_sonar()
-        if not sonar then return end
+        if not eq_bars then return end
         sbar.exec("pkill -f 'sketchybar/helpers/sonar[.]sh' >/dev/null 2>&1;"
             .. " pkill -f 'cava -[p]' >/dev/null 2>&1; pkill -f 'audiotap/bin/audiota[p]' >/dev/null 2>&1; "
             .. ctx.detached(ctx.shell_quote(ctx.helper("sonar.sh"))))
@@ -141,7 +154,9 @@ return function(ctx)
 
         artist:set({ drawing = drawing, label = env.ARTIST })
         title:set({ drawing = drawing, label = env.TITLE })
-        if sonar then sonar:set({ drawing = drawing }) end
+        if eq_bars then
+            for _, bar in ipairs(eq_bars) do bar:set({ drawing = drawing }) end
+        end
 
         if not cover then return end
         if not drawing then
