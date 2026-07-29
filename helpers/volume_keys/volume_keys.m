@@ -9,6 +9,7 @@
 // (including its own volume HUD). Needs Accessibility, which it inherits from
 // sketchybar when spawned by it.
 
+#import <Foundation/Foundation.h>
 #include <ApplicationServices/ApplicationServices.h>
 #include <CoreAudio/CoreAudio.h>
 #include <IOKit/hidsystem/ev_keymap.h>
@@ -95,6 +96,50 @@ static bool volume_address(AudioDeviceID device, AudioObjectPropertyAddress* add
   return false;
 }
 
+// macOS draws its volume HUD from a private XPC service. Since we consume the
+// key event, we ask that service to show the same HUD ourselves, so the
+// feedback stays exactly what the system would have shown.
+@protocol OSDUIHelperProtocol
+- (void)showImage:(int)image
+      onDisplayID:(CGDirectDisplayID)display
+         priority:(unsigned int)priority
+    msecUntilFade:(unsigned int)msec
+   filledChiclets:(unsigned int)filled
+    totalChiclets:(unsigned int)total
+           locked:(BOOL)locked;
+@end
+
+#define OSD_IMAGE_VOLUME 3
+#define OSD_IMAGE_MUTED 4
+#define OSD_CHICLETS 16
+
+static id osd_proxy(void) {
+  static id proxy = nil;
+  static dispatch_once_t once;
+  dispatch_once(&once, ^{
+    NSXPCConnection* connection =
+        [[NSXPCConnection alloc] initWithMachServiceName:@"com.apple.OSDUIHelper" options:0];
+    connection.remoteObjectInterface =
+        [NSXPCInterface interfaceWithProtocol:@protocol(OSDUIHelperProtocol)];
+    [connection resume];
+    proxy = [connection remoteObjectProxyWithErrorHandler:^(NSError* error) { (void)error; }];
+  });
+  return proxy;
+}
+
+static void show_osd(float level, bool muted) {
+  id<OSDUIHelperProtocol> proxy = osd_proxy();
+  if (!proxy) return;
+  unsigned int filled = (unsigned int)(level * OSD_CHICLETS + 0.5f);
+  [proxy showImage:(muted ? OSD_IMAGE_MUTED : OSD_IMAGE_VOLUME)
+       onDisplayID:CGMainDisplayID()
+          priority:0x1f4
+     msecUntilFade:1000
+    filledChiclets:muted ? 0 : filled
+     totalChiclets:OSD_CHICLETS
+            locked:NO];
+}
+
 static void notify_bar(int percent) {
   char command[128];
   snprintf(command, sizeof(command),
@@ -125,6 +170,7 @@ static void adjust_volume(int direction, bool fine) {
     AudioObjectSetPropertyData(device, &mute, 0, NULL, sizeof(off), &off);
   }
 
+  show_osd(value, false);
   notify_bar((int)(value * 100.0f + 0.5f));
 }
 
@@ -142,6 +188,7 @@ static void toggle_mute(void) {
   AudioObjectSetPropertyData(device, &mute, 0, NULL, sizeof(muted), &muted);
 
   if (muted) {
+    show_osd(0.0f, true);
     notify_bar(0);
   } else {
     AudioObjectPropertyAddress address;
@@ -149,6 +196,7 @@ static void toggle_mute(void) {
     UInt32 vsize = sizeof(value);
     if (volume_address(device, &address) &&
         AudioObjectGetPropertyData(device, &address, 0, NULL, &vsize, &value) == noErr) {
+      show_osd(value, false);
       notify_bar((int)(value * 100.0f + 0.5f));
     }
   }
@@ -185,7 +233,13 @@ static CGEventRef on_event(CGEventTapProxy proxy, CGEventType type, CGEventRef e
   }
 }
 
-int main(void) {
+int main(int argc, char** argv) {
+  if (argc > 1 && strcmp(argv[1], "--test-osd") == 0) {
+    show_osd(0.5f, false);
+    [NSThread sleepForTimeInterval:1.5];
+    return 0;
+  }
+
   CFMachPortRef tap = CGEventTapCreate(kCGSessionEventTap, kCGHeadInsertEventTap,
                                        kCGEventTapOptionDefault,
                                        CGEventMaskBit(NX_SYSDEFINED), on_event, NULL);

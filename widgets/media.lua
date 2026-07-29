@@ -15,6 +15,7 @@ return function(ctx)
     -- EQ: a cluster of thin bars whose heights are driven by helpers/sonar.sh
     local cover, eq_bars
     local EQ_N = media.eq_bars or 12
+    local EQ_H = media.eq_height or 16
     if media.sonar and has_cava() then
         eq_bars = {}
         for i = 1, EQ_N do
@@ -33,6 +34,7 @@ return function(ctx)
                     height = 2,
                     corner_radius = 1,
                 },
+                y_offset = -(EQ_H // 2) + 1,
             })
             eq_bars[i] = bar
             table.insert(ctx.groups.right, bar.name)
@@ -138,7 +140,8 @@ return function(ctx)
         if not eq_bars then return end
         sbar.exec("pkill -f 'sketchybar/helpers/sonar[.]sh' >/dev/null 2>&1;"
             .. " pkill -f 'cava -[p]' >/dev/null 2>&1; pkill -f 'audiotap/bin/audiota[p]' >/dev/null 2>&1; "
-            .. ctx.detached(ctx.shell_quote(ctx.helper("sonar.sh"))))
+            .. ctx.detached("SONAR_BARS=" .. EQ_N .. " SONAR_HEIGHT=" .. EQ_H
+                .. " " .. ctx.shell_quote(ctx.helper("sonar.sh"))))
     end
 
     start_stream()

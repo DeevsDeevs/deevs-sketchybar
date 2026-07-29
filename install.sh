@@ -15,7 +15,6 @@ make -C helpers/menus >/dev/null
 make -C helpers/audio_devices >/dev/null
 make -C helpers/event_providers >/dev/null
 make -C helpers/volume_keys >/dev/null
-make -C helpers/audiotap >/dev/null 2>&1 || warn "audiotap build failed → sonar falls back to cava/mic"
 say "helpers built"
 
 if [ ! -f "$HOME/.local/share/sketchybar_lua/sketchybar.so" ]; then
@@ -34,7 +33,10 @@ fi
 
 # optional deps — widgets hide themselves when these are missing
 command -v media-control >/dev/null || warn "media-control missing → media widget off (brew install media-control)"
-command -v cava >/dev/null || warn "cava missing → sonar off (also needs a loopback like BlackHole 2ch)"
+command -v cava >/dev/null || warn "cava missing → sonar EQ off"
+if ! system_profiler SPAudioDataType 2>/dev/null | grep -q BlackHole; then
+  warn "BlackHole missing → EQ would follow the microphone (brew install blackhole-2ch)"
+fi
 command -v herdr >/dev/null || warn "herdr missing → herd widget off"
 command -v yabai >/dev/null || warn "yabai missing → spaces fall back to static 1..10"
 

@@ -20,8 +20,10 @@ return {
 
     media = {
         enabled = true,
-        cover = true,        -- album art
-        sonar = true,        -- cava spectrum (needs: cava + BlackHole loopback)
+        cover = true,        -- album art, with controls in its popup
+        sonar = true,        -- spectrum EQ (needs cava; see audio.auto_route)
+        eq_bars = 12,
+        eq_height = 16,      -- px at full scale
         whitelist = { ["com.spotify.client"] = true, ["com.apple.Music"] = true },
     },
 
@@ -35,12 +37,11 @@ return {
             { name = "local" },
             -- { name = "prod-1", ssh = "deevs@prod-1" },
         },
-        poll = 5,            -- seconds, local; remote hosts poll at 3x
+        poll = 5,            -- seconds
     },
 
     session = {
-        enabled = true,      -- Session.app pomodoro (needs: Session.app)
-        alias = "Session,Item-0",
+        enabled = true,      -- Session.app pomodoro (needs Session.app)
     },
 
     mood = false,            -- per-space accent colors

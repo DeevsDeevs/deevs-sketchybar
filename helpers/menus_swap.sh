@@ -12,7 +12,7 @@ set -u
 DIR="$(cd "$(dirname "$0")" && pwd)"
 MENUS="$DIR/menus/bin/menus"
 STATE="${TMPDIR:-/tmp}/sketchybar-menu-mode"
-MAX=12
+MAX="${MENU_SLOTS:-12}"
 
 hide_menus() {
   local args=() i
@@ -23,9 +23,10 @@ hide_menus() {
 }
 
 show_menus() {
-  local names=() line args=() i=1
+  local names=() line args=() i=1 first=1
   while IFS= read -r line; do
     [ -z "$line" ] && continue
+    if [ "$first" = 1 ]; then first=0; continue; fi   # app menu = front_app label
     names+=("$line")
     [ ${#names[@]} -ge $MAX ] && break
   done < <("$MENUS" -l 2>/dev/null)

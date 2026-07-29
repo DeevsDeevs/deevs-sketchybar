@@ -1,6 +1,6 @@
-bin/volume_keys: volume_keys.c
+bin/volume_keys: volume_keys.m
 	mkdir -p bin
-	clang -std=c99 -O2 -framework ApplicationServices -framework CoreAudio -framework CoreFoundation -framework IOKit volume_keys.c -o bin/volume_keys
+	clang -fobjc-arc -O2 -framework Foundation -framework ApplicationServices -framework CoreAudio -framework CoreFoundation -framework IOKit volume_keys.m -o bin/volume_keys
 
 clean:
 	rm -rf bin

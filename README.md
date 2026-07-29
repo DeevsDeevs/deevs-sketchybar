@@ -21,10 +21,12 @@ Everything lives in [`config.lua`](config.lua) — **every widget is optional** 
 | `structure` | bar shape | `glass` · `islands` · `deck` · `mono` |
 | `palette` | color world | 16 themes in [`palettes/`](palettes/) |
 | `glass` | bar translucency | `0.0`–`1.0` |
-| `media` | now playing | `cover`, `sonar` (cava), whitelist |
+| `media` | now playing | `cover`, `sonar`, `eq_bars`, `eq_height`, whitelist |
 | `herd` | agent fleet | `hosts` incl. SSH targets |
 | `session` | pomodoro | Session.app alias + deep links |
 | `mood` | per-space accents | `true` / `false` |
+| `audio.auto_route` | loopback routing for the EQ | `true` / `false` |
+| `menus_swap` | click the app name for its menus | `true` / `false` |
 
 Default ships as: `glass · everforest · glass 0.66 · sonar+session+herd`.
 
@@ -114,6 +116,21 @@ cava on the default input, which is the microphone.
 
 **Nothing reacts to clicks.** Check the bar isn't covered: `yabai -m config
 external_bar` must reserve at least the bar height plus its `y_offset`.
+
+## Layout
+
+```
+config.lua          what you edit — every widget optional
+core/               entry point, shared context, fonts
+palettes/           16 colour worlds, one file each
+structures/         glass · islands · deck · mono (layout only)
+widgets/            one self-contained module per feature
+helpers/            C and shell helpers (built by install.sh)
+```
+
+Widgets never reference a structure and structures never reference a widget:
+a structure only sets the bar shape and the shared item style, so any widget
+works under any structure.
 
 ## Credits
 

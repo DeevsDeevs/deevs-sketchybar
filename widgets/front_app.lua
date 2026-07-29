@@ -35,22 +35,23 @@ return function(ctx)
             updates = true,
             icon = { drawing = false },
             label = {
-                font = { family = ctx.settings.font.text, style = i == 1 and "Bold" or "Regular", size = 11.5 },
-                color = i == 1 and p.accent or ctx.with_alpha(p.fg, 0.75),
+                font = { family = ctx.settings.font.text, style = "Regular", size = 11.5 },
+                color = ctx.with_alpha(p.fg, 0.75),
                 padding_left = 6,
                 padding_right = 6,
             },
-            click_script = ctx.shell_quote(menus_bin) .. " -s " .. i,
+            -- slot i shows the (i+1)th menu: the app menu is the front_app label
+            click_script = ctx.shell_quote(menus_bin) .. " -s " .. (i + 1),
         })
     end
 
-    front_app:set({ click_script = ctx.shell_quote(swap) })
+    front_app:set({ click_script = "MENU_SLOTS=" .. max_menus .. " " .. ctx.shell_quote(swap) })
 
     -- Shell-side refresher: created through the CLI so its script stays a real
     -- shell script (a lua subscription would route it back through lua).
     sbar.exec("sketchybar --add item menus.refresher left"
         .. " --set menus.refresher drawing=off updates=on"
-        .. " script=" .. ctx.shell_quote(swap .. " refresh")
+        .. " script=" .. ctx.shell_quote("MENU_SLOTS=" .. max_menus .. " " .. swap .. " refresh")
         .. " --subscribe menus.refresher front_app_switched")
 
     -- Always start in spaces mode after a reload.
