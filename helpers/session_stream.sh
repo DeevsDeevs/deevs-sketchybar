@@ -33,10 +33,14 @@ while :; do
     NODB*)
       sketchybar --trigger session_update STATE=absent >/dev/null 2>&1
       ;;
-    *)
+    IDLE)
       IFS=$'\t' read -r today_n today_min <<<"$("$QUERY" today)"
       sketchybar --trigger session_update STATE=idle \
         TODAY_N="${today_n:-0}" TODAY_MIN="${today_min:-0}" >/dev/null 2>&1
+      ;;
+    *)
+      # Only an explicit IDLE clears the chip. Anything else means the query
+      # itself broke, and asserting "idle" there blanks a running session.
       ;;
   esac
 

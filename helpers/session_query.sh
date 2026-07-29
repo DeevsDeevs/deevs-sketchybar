@@ -44,8 +44,10 @@ case "${1:-current}" in
       exit 0
     fi
 
+    # floor the numbers: pause_buffer comes back as a float once a block has
+    # been paused and resumed, which shell arithmetic cannot parse at all.
     IFS=$'\t' read -r state dur buf start title <<EOF
-$(printf '%s' "$json" | jq -r '[(.state//""), (.duration_second//0), (.pause_buffer//0), (.start_date//""), (.title//"")] | @tsv')
+$(printf '%s' "$json" | jq -r '[(.state//""), (.duration_second//0|floor), (.pause_buffer//0|floor), (.start_date//""), (.title//"")] | @tsv')
 EOF
 
     # Only states we have actually observed count as running; a paused or
