@@ -142,7 +142,11 @@ return function(ctx)
     local function slide_step()
         if overflow <= 0 then return slide_reset() end
         slide_out = not slide_out
-        sbar.animate("linear", 90, function()
+        -- Frames scale with the distance so the glide holds a steady speed
+        -- whatever the title's length, capped to finish inside the tick that
+        -- started it. "sin" eases both ends; "linear" set off and stopped dead.
+        local frames = math.max(70, math.min(160, math.floor(overflow * 2.6)))
+        sbar.animate("sin", frames, function()
             title:set({ label = { padding_left = slide_out and -overflow or 0 } })
         end)
     end
@@ -175,7 +179,7 @@ return function(ctx)
             else
                 slide_step()
             end
-            sbar.animate("tanh", 20, function()
+            sbar.animate("tanh", 28, function()
                 artist:set({ label = { width = detail and TEXT_W or 0 } })
                 title:set({ label = { width = detail and TEXT_W or 0 } })
             end)
