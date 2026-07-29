@@ -17,10 +17,10 @@ remove_items() {
 show_message() {
   local message="$1"
   sketchybar \
-    --set "$BRACKET" popup.drawing=on \
     --add item volume.device.message "popup.$BRACKET" \
     --set volume.device.message width="$POPUP_WIDTH" align=center \
-      label="$message" label.color="$LABEL_GREY"
+      label="$message" label.color="$LABEL_GREY" \
+    --set "$BRACKET" popup.drawing=on
 }
 
 popup_is_open() {
@@ -43,9 +43,8 @@ if [[ ! -x "$AUDIO_DEVICES_BIN" ]]; then
   exit 0
 fi
 
-sketchybar --set "$BRACKET" popup.drawing=on
-
 index=0
+args=()
 while IFS= read -r line; do
   [[ -z "$line" ]] && continue
   IFS=$'\t' read -r current device_id device_name <<<"$line"
@@ -59,15 +58,22 @@ while IFS= read -r line; do
 
   click_script="$AUDIO_DEVICES_BIN set $device_id ${ROUTE_FLAG:-} && sketchybar --set /volume.device\\..*/ label.color=$LABEL_GREY --set \$NAME label.color=$LABEL_WHITE --set $BRACKET popup.drawing=off; sketchybar --trigger system_woke"
 
-  sketchybar \
-    --add item "$item" "popup.$BRACKET" \
-    --set "$item" width="$POPUP_WIDTH" align=center \
-      label="$device_name" label.color="$label_color" \
+  args+=(
+    --add item "$item" "popup.$BRACKET"
+    --set "$item" width="$POPUP_WIDTH" align=center
+      label="$device_name" label.color="$label_color"
       click_script="$click_script"
+  )
 
   index=$((index + 1))
 done < <("$AUDIO_DEVICES_BIN" list)
 
 if [[ $index -eq 0 ]]; then
   show_message "No output devices found"
+  exit 0
 fi
+
+# Every row plus the reveal in one message. Opening the popup first and then
+# appending rows one process at a time is what made it pop up empty and grow:
+# each --add relayouts an already-visible popup.
+sketchybar "${args[@]}" --set "$BRACKET" popup.drawing=on
