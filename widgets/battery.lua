@@ -31,9 +31,13 @@ return function(ctx)
                 elseif charge > 20 then icon, color = "󰁻", p.warn
                 else icon, color = "󰁺", p.bad end
             end
+            -- Desktop Macs report AC power with no percentage at all; show
+            -- nothing rather than a permanent "?" chip.
+            if not charge then return battery:set({ drawing = false }) end
             battery:set({
+                drawing = true,
                 icon = { string = icon, color = color },
-                label = { string = charge and (charge .. "%") or "?" },
+                label = { string = charge .. "%" },
             })
         end)
     end)

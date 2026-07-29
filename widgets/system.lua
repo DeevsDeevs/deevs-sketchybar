@@ -110,9 +110,11 @@ return function(ctx)
         net_down:set({ label = "↓ " .. rate(env.download) })
     end)
 
-    -- ram: cheap vm_stat poll
+    -- ram: cheap vm_stat poll. The compressor line is "Pages occupied by
+    -- compressor" — matching "Pages compressed" silently matched nothing and
+    -- under-reported by roughly half whenever memory was under pressure.
     ram:subscribe({ "routine", "forced" }, function()
-        sbar.exec([[vm_stat | awk '/page size/{gsub(/[^0-9]/,"",$8); ps=$8} /Pages active/{a=$3} /Pages wired/{w=$4} /Pages compressed/{c=$5} END{printf "%.0f", (a+w+c)*ps/1073741824}']],
+        sbar.exec([[vm_stat | awk '/page size/{gsub(/[^0-9]/,"",$8); ps=$8} /Pages active/{a=$3} /Pages wired/{w=$4} /occupied by compressor/{c=$5} END{printf "%.0f", (a+w+c)*ps/1073741824}']],
             function(gb)
                 ram:set({ label = tostring(gb):gsub("%s", "") .. "G" })
             end)

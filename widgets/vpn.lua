@@ -10,9 +10,13 @@ return function(ctx)
     table.insert(ctx.groups.right, vpn.name)
 
     vpn:subscribe({ "routine", "forced", "system_woke" }, function()
-        sbar.exec("scutil --nc list 2>/dev/null | grep -c Connected; ifconfig utun0 2>/dev/null | grep -c inet", function(out)
-            local connected = tostring(out):match("[1-9]") ~= nil
-            vpn:set({ icon = { color = connected and p.good or p.bad } })
+        -- Count only services actually reporting "(Connected)". The old probe
+        -- also looked for an address on utun0, but macOS keeps a utun0 with an
+        -- inet6 link-local up for Handoff/Private Relay on every Mac, so it
+        -- reported connected forever whether or not a VPN existed.
+        sbar.exec("scutil --nc list 2>/dev/null | grep -c '(Connected)'", function(out)
+            local connected = (tonumber(tostring(out):match("%d+")) or 0) > 0
+            vpn:set({ icon = { color = connected and p.good or ctx.with_alpha(p.fg, 0.35) } })
         end)
     end)
 end
