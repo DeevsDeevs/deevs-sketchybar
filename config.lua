@@ -52,7 +52,10 @@ return {
     -- multi-output aggregate (device + BlackHole). macOS gives aggregates no
     -- hardware volume, so the F-row volume keys stop working while it is on —
     -- the bar's own volume chip (click/scroll) keeps working either way.
-    audio = { auto_route = true },
+    audio = {
+        auto_route = true,   -- route through <device + BlackHole> so sonar hears music
+        volume_keys = false, -- enable only if the media keys stop working while routed
+    },
     battery  = { enabled = true },
     calendar = { enabled = true },
 

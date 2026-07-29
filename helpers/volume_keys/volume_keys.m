@@ -214,23 +214,31 @@ static CGEventRef on_event(CGEventTapProxy proxy, CGEventType type, CGEventRef e
   target_device(&routed);
   if (!routed) return event;
 
-  // Only aux-control events (the F-row media keys) carry a key in data1.
-  if (CGEventGetIntegerValueField(event, 151) != NX_SUBTYPE_AUX_CONTROL_BUTTONS) return event;
-
+  // data1 packs <key code | flags>. NSEvent decoding is unreliable in a CLI
+  // process (every subtype reads as 7), so read the field directly and verify
+  // the payload really is a media-key press/release before trusting it.
   int64_t data1 = CGEventGetIntegerValueField(event, 149);
   int key_code = (int)((data1 & 0xFFFF0000) >> 16);
+  int key_state = (int)((data1 & 0x0000FF00) >> 8);
+  bool pressed = key_state == 0x0A;
+  bool released = key_state == 0x0B;
 
-  // Decide on the key FIRST: everything that is not a volume key — brightness,
-  // playback, mission control, keyboard backlight — must pass through
-  // untouched, presses and releases alike.
+  if (getenv("VK_DEBUG")) {
+    FILE* log = fopen("/tmp/vk.log", "a");
+    if (log) { fprintf(log, "code=%d state=0x%02X\n", key_code, key_state); fclose(log); }
+  }
+
+  // Not a media-key event at all (other system events reuse this type).
+  if (!pressed && !released) return event;
+
+  // Everything that is not a volume key — brightness, playback, mission
+  // control, keyboard backlight — passes through untouched.
   if (key_code != NX_KEYTYPE_SOUND_UP && key_code != NX_KEYTYPE_SOUND_DOWN
       && key_code != NX_KEYTYPE_MUTE) {
     return event;
   }
 
-  int key_flags = (int)(data1 & 0x0000FFFF);
-  bool key_down = ((key_flags & 0xFF00) >> 8) == 0x0A;
-  if (!key_down) return NULL; // swallow the matching release
+  if (!pressed) return NULL; // swallow the matching release
 
   CGEventFlags flags = CGEventGetFlags(event);
   bool fine = (flags & kCGEventFlagMaskShift) && (flags & kCGEventFlagMaskAlternate);
@@ -250,6 +258,7 @@ int main(int argc, char** argv) {
     return 0;
   }
 
+  if (getenv("VK_DEBUG")) { FILE* l = fopen("/tmp/vk.log", "a"); if (l) { fprintf(l, "starting\n"); fclose(l); } }
   CFMachPortRef tap = CGEventTapCreate(kCGSessionEventTap, kCGHeadInsertEventTap,
                                        kCGEventTapOptionDefault,
                                        CGEventMaskBit(NX_SYSDEFINED), on_event, NULL);

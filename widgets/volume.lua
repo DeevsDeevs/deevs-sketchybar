@@ -58,9 +58,10 @@ return function(ctx)
         if not (env.INFO.modifier == "ctrl") then delta = delta * 10.0 end
         sbar.exec(helper .. " volume " .. (delta > 0 and "+" or "") .. math.floor(delta), refresh)
     end)
-    -- While routed, the aggregate has no hardware volume, so the media keys
-    -- would be dead; this tap applies them to the real device instead.
-    if auto_route then
+    -- Optional: only needed if the media keys do nothing while routed. The
+    -- tap consumes the three volume keys and applies them to the real device
+    -- beneath the aggregate; everything else passes through.
+    if (ctx.config.audio or {}).volume_keys then
         sbar.exec("pkill -f 'helpers/volume_keys/bin/volume_key[s]' >/dev/null 2>&1; "
             .. ctx.detached(ctx.shell_quote(ctx.helper("volume_keys/bin/volume_keys"))))
     end
