@@ -14,6 +14,7 @@ say "building C helpers"
 make -C helpers/menus >/dev/null
 make -C helpers/audio_devices >/dev/null
 make -C helpers/event_providers >/dev/null
+make -C helpers/audiotap >/dev/null 2>&1 || warn "audiotap build failed → sonar falls back to cava/mic"
 say "helpers built"
 
 if [ ! -f "$HOME/.local/share/sketchybar_lua/sketchybar.so" ]; then

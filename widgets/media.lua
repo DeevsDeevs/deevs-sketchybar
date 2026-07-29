@@ -124,7 +124,7 @@ return function(ctx)
     local function start_sonar()
         if not sonar then return end
         sbar.exec("pkill -f 'sketchybar/helpers/sonar[.]sh' >/dev/null 2>&1;"
-            .. " pkill -f 'cava -[p]' >/dev/null 2>&1; "
+            .. " pkill -f 'cava -[p]' >/dev/null 2>&1; pkill -f 'audiotap/bin/audiota[p]' >/dev/null 2>&1; "
             .. ctx.detached(ctx.shell_quote(ctx.helper("sonar.sh"))))
     end
 
