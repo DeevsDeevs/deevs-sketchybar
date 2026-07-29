@@ -43,24 +43,34 @@ function ctx.cluster(name, item)
     table.insert(ctx.clusters[name], item)
 end
 
+-- Blank fixed-width item used to separate chips. A bracket's own padding grows
+-- its extent by the same amount it insets the background, so the slab always
+-- ends up hugging its contents and neighbouring chips touch no matter what is
+-- set on them. An item that belongs to neither bracket is the only thing that
+-- reliably keeps them apart.
+local gaps = 0
+
+function ctx.gap(width)
+    if ctx.config.chips == false then return end
+    gaps = gaps + 1
+    sbar.add("item", "gap." .. gaps, {
+        position = "right",
+        width = width or 10,
+        padding_left = 0,
+        padding_right = 0,
+        icon = { drawing = false },
+        label = { drawing = false },
+        background = { drawing = false },
+    })
+end
+
 function ctx.chip(name, members, opts)
     if ctx.config.chips == false then return no_chip end
     local props = {
-        -- A bracket hugs its members exactly, so neighbouring chips sit edge to
-        -- edge and read as one long slab with seams. Pad the bracket itself to
-        -- push them apart — insetting background.padding instead shrinks the
-        -- drawn slab inwards and the contents spill out of their own chip.
-        padding_left = 8,
-        padding_right = 8,
         background = {
             color = ctx.style.item_bg,
             corner_radius = ctx.style.item_radius,
             height = ctx.style.item_height,
-            -- Explicitly zero: the bracket's own padding is inherited by its
-            -- background, which would inset the slab by the very amount meant
-            -- to separate it from the next chip and clip the contents.
-            padding_left = 0,
-            padding_right = 0,
         },
     }
     for key, value in pairs(opts or {}) do props[key] = value end

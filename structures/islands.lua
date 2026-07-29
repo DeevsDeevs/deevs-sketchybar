@@ -26,9 +26,8 @@ function M.apply(ctx)
     })
     sbar.default({
         updates = "when_shown",
-        -- Matches ctx.chip's inset; see glass.lua.
-        padding_left = 8,
-        padding_right = 8,
+        padding_left = 3,
+        padding_right = 3,
         icon = {
             font = { family = ctx.settings.font.text, style = "SemiBold", size = 13.0 },
             color = p.fg, padding_left = 5, padding_right = 5,

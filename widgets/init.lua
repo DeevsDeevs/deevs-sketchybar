@@ -23,9 +23,13 @@ function M.load(ctx)
     if on(c.volume) then require("widgets.volume")(ctx) end
     if on(c.mic) then require("widgets.mic")(ctx) end
     if on(c.vpn) then require("widgets.vpn")(ctx) end
+    ctx.gap()
     if on(c.session) then require("widgets.session")(ctx) end
+    ctx.gap()
     if on(c.herd) then require("widgets.herd")(ctx) end
+    ctx.gap()
     if on(c.system) then require("widgets.system")(ctx) end
+    ctx.gap()
     if on(c.media) then require("widgets.media")(ctx) end
 end
 
