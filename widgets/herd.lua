@@ -3,7 +3,9 @@
 -- Popup: agents grouped needs-you → working → resting; click a row to focus.
 return function(ctx)
     local p, style = ctx.palette, ctx.style
-    local conf = ctx.config.herd
+    -- `herd = true` and an omitted host list both mean "just this machine".
+    local conf = type(ctx.config.herd) == "table" and ctx.config.herd or {}
+    local hosts = conf.hosts or { { name = "local" } }
     local fleet = {} -- host -> agents list
 
     local chip = sbar.add("item", "herd", {
@@ -52,7 +54,7 @@ return function(ctx)
         sbar.remove("/herd\\.row\\..*/")
         local order = { blocked = 1, working = 2, done = 3, idle = 4 }
         local n = 0
-        for _, host in ipairs(conf.hosts) do
+        for _, host in ipairs(hosts) do
             local agents = fleet[host.name] or {}
             table.sort(agents, function(a, b)
                 return (order[a.agent_status] or 9) < (order[b.agent_status] or 9)
@@ -93,18 +95,19 @@ return function(ctx)
         end
     end
 
-    local pending = 0
+    -- Redraw on every reply rather than when a round completes: the old counter
+    -- only rendered on reaching zero, so one dropped callback or one hung SSH
+    -- host left it stuck above zero and the chip froze on a stale count — or
+    -- stayed invisible for good if it happened to be hidden at the time.
     local function poll()
-        for _, host in ipairs(conf.hosts) do
-            pending = pending + 1
+        for _, host in ipairs(hosts) do
             sbar.exec(host_cmd(host), function(result)
-                pending = pending - 1
                 if type(result) == "table" and result.result and result.result.agents then
                     fleet[host.name] = result.result.agents
                 elseif not host.ssh then
                     fleet[host.name] = {}
                 end
-                if pending == 0 then render_chip() end
+                render_chip()
             end)
         end
     end
