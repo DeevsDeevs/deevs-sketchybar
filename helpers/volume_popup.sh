@@ -2,8 +2,7 @@
 
 set -u
 
-readonly HOME_DIR="${HOME:-/Users/deevs}"
-readonly CONFIG_DIR="${CONFIG_DIR:-$HOME_DIR/.config/sketchybar}"
+readonly CONFIG_DIR="${CONFIG_DIR:-$HOME/.config/sketchybar}"
 readonly AUDIO_DEVICES_BIN="$CONFIG_DIR/helpers/audio_devices/bin/audio_devices"
 readonly BRACKET="widgets.volume"
 readonly POPUP_WIDTH=250
@@ -55,7 +54,7 @@ while IFS= read -r line; do
     label_color="$LABEL_WHITE"
   fi
 
-  click_script="$AUDIO_DEVICES_BIN set $device_id ${ROUTE_FLAG:-} && sketchybar --set /volume.device\\..*/ label.color=$LABEL_GREY --set \$NAME label.color=$LABEL_WHITE --set $BRACKET popup.drawing=off; sketchybar --trigger system_woke"
+  click_script="'$AUDIO_DEVICES_BIN' set $device_id ${ROUTE_FLAG:-} && sketchybar --set /volume.device\\..*/ label.color=$LABEL_GREY --set \$NAME label.color=$LABEL_WHITE --set $BRACKET popup.drawing=off; sketchybar --trigger audio_route_changed"
 
   args+=(
     --add item "$item" "popup.$BRACKET"

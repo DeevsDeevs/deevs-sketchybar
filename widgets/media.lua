@@ -3,10 +3,20 @@
 -- NOTE: "media_change" is a RESERVED sketchybar event name; we use media_update.
 return function(ctx)
     local p, c = ctx.palette, ctx.config
-    local media = c.media
+    -- Tolerate `media = true` and a media block with keys left out: every
+    -- lookup below has to survive the minimal config the README suggests.
+    local media = type(c.media) == "table" and c.media or {}
+    local whitelist = media.whitelist or {
+        ["com.spotify.client"] = true,
+        ["com.apple.Music"] = true,
+    }
 
+    -- Must search the same PATH sonar.sh pins, or a devbox/nix cava is
+    -- invisible here (launchd hands sketchybar a bare PATH) and the EQ items
+    -- are never created even though the helper would have found it.
     local function has_cava()
-        local f = io.popen("command -v cava 2>/dev/null")
+        local f = io.popen("PATH=/usr/bin:/bin:/opt/homebrew/bin:$HOME/.local/share/devbox/global/default/.devbox/nix/profile/default/bin:$PATH"
+            .. " command -v cava 2>/dev/null")
         local out = f and f:read("*a") or ""
         if f then f:close() end
         return out ~= ""
@@ -90,6 +100,7 @@ return function(ctx)
     table.insert(ctx.groups.right, title.name)
 
     local mc = "PATH=/opt/homebrew/bin:$PATH media-control "
+    local animate_detail = function() end   -- no-op unless the cover exists
     if cover then
         for _, action in ipairs({
             { icon = "󰒮", cmd = "previous-track" },
@@ -104,23 +115,21 @@ return function(ctx)
             })
         end
 
-        local interrupt = 0
-        local function animate_detail(detail)
-            if not detail then interrupt = interrupt - 1 end
-            if interrupt > 0 and not detail then return end
+        -- Plain boolean rather than a counter: the cover stops drawing when
+        -- playback stops, and a hidden item never delivers the matching
+        -- mouse.exited, so a counter latches and the text stays expanded.
+        local expanded = false
+        animate_detail = function(detail)
+            if detail == expanded then return end
+            expanded = detail
             sbar.animate("tanh", 20, function()
                 artist:set({ label = { width = detail and "dynamic" or 0 } })
                 title:set({ label = { width = detail and "dynamic" or 0 } })
             end)
         end
 
-        cover:subscribe("mouse.entered", function()
-            interrupt = interrupt + 1
-            animate_detail(true)
-        end)
-        cover:subscribe("mouse.exited", function()
-            animate_detail(false)
-        end)
+        cover:subscribe("mouse.entered", function() animate_detail(true) end)
+        cover:subscribe("mouse.exited", function() animate_detail(false) end)
         cover:subscribe("mouse.clicked", function()
             cover:set({ popup = { drawing = "toggle" } })
         end)
@@ -135,17 +144,27 @@ return function(ctx)
     local anchor = cover or title
     local last_track = nil
     sbar.add("event", "media_update")
+    -- Picking an output used to fire system_woke, which six widgets listen to:
+    -- it restarted the media stream (blanking the chip for its 5s startup wait)
+    -- and orphaned another adapter every time. Only the sonar cares, because
+    -- cava's source moves with the route.
+    sbar.add("event", "audio_route_changed")
 
+    -- media-control execs into a perl adapter, so the old "media-control
+    -- stream" pattern matched nothing and every reload/wake orphaned another
+    -- ~17MB subscriber onto launchd. Match what actually runs.
     local function start_stream()
-        sbar.exec("pkill -f 'sketchybar/helpers/media_stream[.]sh' >/dev/null 2>&1;"
-            .. " pkill -f 'media-control strea[m]' >/dev/null 2>&1; "
+        sbar.exec("pkill -f 'helpers/media_stream[.]sh' >/dev/null 2>&1;"
+            .. " pkill -f 'mediaremote-adapte[r]' >/dev/null 2>&1; "
             .. ctx.detached(ctx.shell_quote(ctx.helper("media_stream.sh"))))
     end
 
     local function start_sonar()
         if not eq_bars then return end
-        sbar.exec("pkill -f 'sketchybar/helpers/sonar[.]sh' >/dev/null 2>&1;"
-            .. " pkill -f 'cava -[p]' >/dev/null 2>&1; pkill -f 'audiotap/bin/audiota[p]' >/dev/null 2>&1; "
+        -- Scoped to our own config dir: a bare `cava` pattern would also kill
+        -- a cava the user is running in a terminal.
+        sbar.exec("pkill -f 'helpers/sonar[.]sh' >/dev/null 2>&1;"
+            .. " pkill -f 'sonar-cava[.]' >/dev/null 2>&1; "
             -- `env` rather than a bare VAR=… prefix: the detach wrapper execs.
             .. ctx.detached("env SONAR_BARS=" .. EQ_N .. " SONAR_HEIGHT=" .. EQ_H
                 .. " " .. ctx.shell_quote(ctx.helper("sonar.sh"))))
@@ -157,10 +176,11 @@ return function(ctx)
         start_stream()
         start_sonar()
     end)
+    anchor:subscribe("audio_route_changed", start_sonar)
 
     anchor:subscribe("media_update", function(env)
         local playing = env.PLAYING == "true"
-        local drawing = playing and media.whitelist[env.APP] or false
+        local drawing = playing and whitelist[env.APP] or false
 
         artist:set({ drawing = drawing, label = env.ARTIST })
         title:set({ drawing = drawing, label = env.TITLE })
@@ -170,6 +190,7 @@ return function(ctx)
 
         if not cover then return end
         if not drawing then
+            animate_detail(false)   -- hiding the cover cancels any hover state
             cover:set({ drawing = false, popup = { drawing = false } })
             last_track = nil
             return
