@@ -40,6 +40,7 @@ media-control stream 2>/dev/null | while IFS= read -r line; do
       TITLE="$(jq -r '.title // ""' <<<"$state")" \
       ARTIST="$(jq -r '.artist // ""' <<<"$state")" \
       APP="$(jq -r '.bundleIdentifier // ""' <<<"$state")" \
-      ART_PATH="$ART"
+      ART_PATH="$ART" \
+      ART_NEW="$([[ -n "$art" ]] && printf 1 || printf 0)"
   fi
 done

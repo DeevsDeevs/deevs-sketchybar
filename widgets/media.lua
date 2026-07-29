@@ -69,8 +69,20 @@ return function(ctx)
         table.insert(ctx.groups.right, cover.name)
     end
 
-    -- Two-line stack: title low, artist high; collapsed to width 0 by default,
-    -- expands while hovering the cover.
+    -- Two-line stack: title low, artist high. Artist is the zero-width overlay
+    -- so the two share one horizontal band, which means it has to be created
+    -- AFTER title — a zero-width item draws from the same origin as whatever
+    -- follows it, and with artist next to the cover its label rendered straight
+    -- across the album art. Both collapse to 0 and expand on hover.
+    local title = sbar.add("item", "media.title", {
+        position = "right",
+        drawing = false,
+        updates = true,
+        padding_left = 3,
+        padding_right = 0,
+        icon = { drawing = false },
+        label = { font = { size = 11 }, width = 0, max_chars = 16, y_offset = -5 },
+    })
     local artist = sbar.add("item", "media.artist", {
         position = "right",
         drawing = false,
@@ -87,17 +99,8 @@ return function(ctx)
             y_offset = 6,
         },
     })
-    local title = sbar.add("item", "media.title", {
-        position = "right",
-        drawing = false,
-        updates = true,
-        padding_left = 3,
-        padding_right = 0,
-        icon = { drawing = false },
-        label = { font = { size = 11 }, width = 0, max_chars = 16, y_offset = -5 },
-    })
-    table.insert(ctx.groups.right, artist.name)
     table.insert(ctx.groups.right, title.name)
+    table.insert(ctx.groups.right, artist.name)
 
     local mc = "PATH=/opt/homebrew/bin:$PATH media-control "
     local animate_detail = function() end   -- no-op unless the cover exists
@@ -151,7 +154,7 @@ return function(ctx)
     local backdrop = ctx.chip("media.chip", members, { drawing = false })
 
     local anchor = cover or title
-    local last_track = nil
+    local has_art = nil
     sbar.add("event", "media_update")
     -- Picking an output used to fire system_woke, which six widgets listen to:
     -- it restarted the media stream (blanking the chip for its 5s startup wait)
@@ -202,29 +205,25 @@ return function(ctx)
         if not drawing then
             animate_detail(false)   -- hiding the cover cancels any hover state
             cover:set({ drawing = false, popup = { drawing = false } })
-            last_track = nil
+            has_art = nil
             return
         end
-        -- Re-setting background.image on every event stacks draw layers
-        -- (the "fanned covers" artifact) — only set it when the track changes.
-        local track = (env.TITLE or "") .. "|" .. (env.ARTIST or "")
-        if track == last_track then
-            cover:set({ drawing = true })
-            return
-        end
+        -- Artwork arrives in its own event a moment after the title changes, so
+        -- keying the image off the track left the previous song's cover on
+        -- screen until the next one. Re-set it exactly when the helper reports
+        -- new art — still never on every event, which is what stacked draw
+        -- layers into the "fanned covers" artifact.
+        cover:set({ drawing = true })
+        if env.ART_NEW ~= "1" and has_art then return end
         local f = env.ART_PATH and io.open(env.ART_PATH, "r")
-        if f then
-            f:close()
-            last_track = track
-            cover:set({
-                drawing = true,
-                background = {
-                    image = { string = env.ART_PATH, scale = 0.22, corner_radius = 6 },
-                    color = p.transparent,
-                },
-            })
-        else
-            cover:set({ drawing = true })
-        end
+        if not f then return end
+        f:close()
+        has_art = true
+        cover:set({
+            background = {
+                image = { string = env.ART_PATH, scale = 0.22, corner_radius = 6 },
+                color = p.transparent,
+            },
+        })
     end)
 end
