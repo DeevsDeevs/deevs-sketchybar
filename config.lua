@@ -46,6 +46,12 @@ return {
     mood = false,            -- per-space accent colors
 
     volume   = { enabled = true },
+
+    -- Sonar needs a copy of your audio, which means routing output through a
+    -- multi-output aggregate (device + BlackHole). macOS gives aggregates no
+    -- hardware volume, so the F-row volume keys stop working while it is on —
+    -- the bar's own volume chip (click/scroll) keeps working either way.
+    audio = { auto_route = false },
     battery  = { enabled = true },
     calendar = { enabled = true },
 

@@ -49,7 +49,7 @@ while IFS= read -r line; do
     label_color="$LABEL_WHITE"
   fi
 
-  click_script="$AUDIO_DEVICES_BIN set $device_id && sketchybar --set /volume.device\\..*/ label.color=$LABEL_GREY --set \$NAME label.color=$LABEL_WHITE --set $BRACKET popup.drawing=off; sketchybar --trigger system_woke"
+  click_script="$AUDIO_DEVICES_BIN set $device_id ${ROUTE_FLAG:-} && sketchybar --set /volume.device\\..*/ label.color=$LABEL_GREY --set \$NAME label.color=$LABEL_WHITE --set $BRACKET popup.drawing=off; sketchybar --trigger system_woke"
 
   sketchybar \
     --add item "$item" "popup.$BRACKET" \

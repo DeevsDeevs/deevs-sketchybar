@@ -214,6 +214,78 @@ static AudioDeviceID create_aggregate(CFStringRef device_uid, CFStringRef loopba
   return aggregate;
 }
 
+// Aggregates expose no volume, so volume always targets the real device
+// underneath — that keeps a working level control while routing is active.
+static AudioDeviceID effective_output_device(void) {
+  AudioDeviceID current = get_default_output_device();
+  AudioDeviceID aggregate = find_our_aggregate();
+  if (aggregate != kAudioObjectUnknown && current == aggregate) {
+    AudioDeviceID main = aggregate_main_device(aggregate);
+    if (main != kAudioObjectUnknown) return main;
+  }
+  return current;
+}
+
+static bool volume_address(AudioDeviceID device, AudioObjectPropertyAddress* address) {
+  const AudioObjectPropertyAddress candidates[3] = {
+    { kAudioDevicePropertyVolumeScalar, kAudioDevicePropertyScopeOutput,
+      kAudioObjectPropertyElementMain },
+    { kAudioDevicePropertyVolumeScalar, kAudioDevicePropertyScopeOutput, 1 },
+    { kAudioDevicePropertyVolumeScalar, kAudioDevicePropertyScopeOutput, 2 },
+  };
+  for (size_t i = 0; i < 3; ++i) {
+    if (AudioObjectHasProperty(device, &candidates[i])) {
+      *address = candidates[i];
+      return true;
+    }
+  }
+  return false;
+}
+
+static Float32 get_volume(AudioDeviceID device) {
+  AudioObjectPropertyAddress address;
+  if (!volume_address(device, &address)) return -1.0f;
+  Float32 value = 0;
+  UInt32 size = sizeof(value);
+  if (AudioObjectGetPropertyData(device, &address, 0, NULL, &size, &value) != noErr) return -1.0f;
+  return value;
+}
+
+static void print_volume(void) {
+  Float32 value = get_volume(effective_output_device());
+  if (value < 0) { printf("--\n"); return; }
+  printf("%d\n", (int)(value * 100.0f + 0.5f));
+}
+
+// Accepts an absolute level or a relative "+5" / "-5".
+static void set_volume(const char* arg) {
+  AudioDeviceID device = effective_output_device();
+  AudioObjectPropertyAddress address;
+  if (!volume_address(device, &address)) return;
+
+  long requested = strtol(arg, NULL, 10);
+  Float32 target;
+  if (arg[0] == '+' || arg[0] == '-') {
+    Float32 current = get_volume(device);
+    if (current < 0) current = 0;
+    target = current + (Float32)requested / 100.0f;
+  } else {
+    target = (Float32)requested / 100.0f;
+  }
+  if (target < 0.0f) target = 0.0f;
+  if (target > 1.0f) target = 1.0f;
+
+  AudioObjectSetPropertyData(device, &address, 0, NULL, sizeof(target), &target);
+
+  // Unmute when raising from zero, so the level actually becomes audible.
+  AudioObjectPropertyAddress mute = { kAudioDevicePropertyMute, kAudioDevicePropertyScopeOutput,
+                                      kAudioObjectPropertyElementMain };
+  if (target > 0.0f && AudioObjectHasProperty(device, &mute)) {
+    UInt32 off = 0;
+    AudioObjectSetPropertyData(device, &mute, 0, NULL, sizeof(off), &off);
+  }
+}
+
 static void print_output_devices(void) {
   AudioDeviceID* devices = NULL;
   UInt32 count = copy_all_devices(&devices);
@@ -247,7 +319,7 @@ static void print_output_devices(void) {
   free(devices);
 }
 
-static void set_output_device_from_arg(const char* arg) {
+static void set_output_device_from_arg(const char* arg, bool route) {
   char* end = NULL;
   unsigned long parsed = strtoul(arg, &end, 10);
   if (!arg[0] || !end || *end != '\0') {
@@ -263,7 +335,7 @@ static void set_output_device_from_arg(const char* arg) {
   destroy_our_aggregate();
 
   AudioDeviceID target = device_id;
-  if (device_uid && loopback_uid) {
+  if (route && device_uid && loopback_uid) {
     AudioDeviceID aggregate = create_aggregate(device_uid, loopback_uid);
     if (aggregate != kAudioObjectUnknown) target = aggregate;
   }
@@ -277,7 +349,7 @@ static void set_output_device_from_arg(const char* arg) {
 
 int main(int argc, char** argv) {
   if (argc < 2) {
-    fprintf(stderr, "Usage: %s list | set <device-id>\n", argv[0]);
+    fprintf(stderr, "Usage: %s list | set <device-id> [--route] | volume [level|+N|-N] | unroute\n", argv[0]);
     return 1;
   }
 
@@ -286,11 +358,26 @@ int main(int argc, char** argv) {
     return 0;
   }
 
-  if (strcmp(argv[1], "set") == 0 && argc == 3) {
-    set_output_device_from_arg(argv[2]);
+  if (strcmp(argv[1], "set") == 0 && argc >= 3) {
+    bool route = argc >= 4 && strcmp(argv[3], "--route") == 0;
+    set_output_device_from_arg(argv[2], route);
     return 0;
   }
 
-  fprintf(stderr, "Usage: %s list | set <device-id>\n", argv[0]);
+  if (strcmp(argv[1], "volume") == 0) {
+    if (argc == 2) print_volume();
+    else set_volume(argv[2]);
+    return 0;
+  }
+
+  if (strcmp(argv[1], "unroute") == 0) {
+    AudioDeviceID device = effective_output_device();
+    destroy_our_aggregate();
+    set_default_device(kAudioHardwarePropertyDefaultOutputDevice, device);
+    set_default_device(kAudioHardwarePropertyDefaultSystemOutputDevice, device);
+    return 0;
+  }
+
+  fprintf(stderr, "Usage: %s list | set <device-id> [--route] | volume [level|+N|-N] | unroute\n", argv[0]);
   return 1;
 }

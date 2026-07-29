@@ -57,12 +57,21 @@ brew install blackhole-2ch
 sudo killall coreaudiod     # load the driver without rebooting
 ```
 
-After that there is **nothing to configure, ever**. Picking an output in the
-bar's volume popup builds a private multi-output aggregate of *that device +
+Then set `audio.auto_route = true` in `config.lua`. Picking an output in the
+bar's volume popup builds a multi-output aggregate of *that device +
 BlackHole* and selects it: sound plays from the device you chose, cava reads
 the identical signal from BlackHole. Switch to AirPods, a monitor, speakers —
 click it in the bar and the sonar follows. Audio MIDI Setup is never involved,
-and BlackHole itself is hidden from the device list.
+and BlackHole is hidden from the device list.
+
+**The trade-off:** macOS gives aggregate devices no hardware volume, so while
+routing is on the F-row volume keys do nothing — that is a platform
+limitation, not something a config can fix. The bar's volume chip still works
+(scroll it, or drag the slider in its popup), because `audio_devices volume`
+targets the real device underneath the aggregate. Routing is therefore
+**off by default**; turn it on only if you want the EQ more than the keys.
+
+`audio_devices unroute` returns to a plain device immediately.
 
 Without BlackHole the helper just sets the device directly and the EQ falls
 back to the default input (i.e. the microphone).
