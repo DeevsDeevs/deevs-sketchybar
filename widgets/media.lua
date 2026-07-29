@@ -82,18 +82,22 @@ return function(ctx)
         table.insert(ctx.groups.right, cover.name)
     end
 
-    -- Two-line stack: artist above, title below, both right-aligned so they sit
-    -- against the cover however short they are. They land on the same box only
+    -- Two-line stack: artist above, title below. They land on the same box only
     -- because both labels carry the SAME fixed width — item width = 0 does not
     -- collapse the artist, it just parks it beside the title at a different
-    -- height, which reads as two ragged lines. scroll_texts runs a title too
-    -- long for the box rather than widening it.
+    -- height, which reads as two ragged lines.
+    --
+    -- Alignment is per line and depends on whether the text fits: one that fits
+    -- is right-aligned so it sits against the cover instead of being stranded
+    -- at the far edge of the box, and one that does not is left-aligned and
+    -- marqueed (see slide). sketchybar's own scroll_texts does not move the
+    -- text — verified with a 62-char label in a 150px box, zero pixels of
+    -- movement over six seconds, item and bar property alike.
     local function line(name, opts)
         local item = sbar.add("item", name, {
             position = "right",
             drawing = false,
             updates = true,
-            scroll_texts = true,
             width = opts.overlay and 0 or nil,
             padding_left = 0,
             padding_right = 0,
@@ -112,12 +116,36 @@ return function(ctx)
         return item
     end
 
+    -- JetBrainsMono is monospaced, so a character count is a good enough width.
+    local function text_px(value, size)
+        return (utf8.len(tostring(value or "")) or 0) * size * 0.60
+    end
+
     -- Artist first so it is the zero-width overlay sitting on top of the title.
     local artist = line("media.artist", {
         overlay = true, size = 9, y = 6, pad = 10,
         color = ctx.with_alpha(p.fg, 0.6),
     })
     local title = line("media.title", { size = 11, y = -5, pad = 10, color = p.fg })
+
+    -- Marquee: the label clips to its fixed width, so animating its left padding
+    -- negative slides the rest of the title into view and back again. Runs only
+    -- while the text is expanded and genuinely too long to fit.
+    local overflow = 0
+    local slide_out = false
+
+    local function slide_reset()
+        slide_out = false
+        title:set({ label = { padding_left = 0 } })
+    end
+
+    local function slide_step()
+        if overflow <= 0 then return slide_reset() end
+        slide_out = not slide_out
+        sbar.animate("linear", 90, function()
+            title:set({ label = { padding_left = slide_out and -overflow or 0 } })
+        end)
+    end
 
     local mc = "PATH=/opt/homebrew/bin:$PATH media-control "
     local animate_detail = function() end   -- no-op unless the cover exists
@@ -142,11 +170,23 @@ return function(ctx)
         animate_detail = function(detail)
             if detail == expanded then return end
             expanded = detail
+            if not detail then
+                slide_reset()
+            else
+                slide_step()
+            end
             sbar.animate("tanh", 20, function()
                 artist:set({ label = { width = detail and TEXT_W or 0 } })
                 title:set({ label = { width = detail and TEXT_W or 0 } })
             end)
         end
+
+        -- One leg of the marquee per tick; the slide itself takes ~1.5s of the
+        -- 3s window, leaving the ends readable.
+        title:set({ update_freq = 3 })
+        title:subscribe("routine", function()
+            if expanded then slide_step() end
+        end)
 
         cover:subscribe("mouse.entered", function() animate_detail(true) end)
         cover:subscribe("mouse.exited", function() animate_detail(false) end)
@@ -213,8 +253,25 @@ return function(ctx)
         local drawing = playing and whitelist[env.APP] or false
 
         backdrop:set({ drawing = drawing })
-        artist:set({ drawing = drawing, label = clip(env.ARTIST, 28) })
-        title:set({ drawing = drawing, label = env.TITLE })
+
+        -- A line that fits is right-aligned so it sits against the cover; one
+        -- that does not is left-aligned and marqueed, because right-aligning it
+        -- would pin the tail and hide the start.
+        local title_px = text_px(env.TITLE, 11)
+        overflow = math.max(0, math.ceil(title_px - TEXT_W))
+        slide_reset()
+
+        artist:set({
+            drawing = drawing,
+            label = {
+                string = clip(env.ARTIST, 28),
+                align = text_px(env.ARTIST, 9) > TEXT_W and "left" or "right",
+            },
+        })
+        title:set({
+            drawing = drawing,
+            label = { string = env.TITLE, align = overflow > 0 and "left" or "right" },
+        })
         if eq_bars then
             for _, bar in ipairs(eq_bars) do bar:set({ drawing = drawing }) end
         end
