@@ -46,15 +46,21 @@ end
 function ctx.chip(name, members, opts)
     if ctx.config.chips == false then return no_chip end
     local props = {
+        -- A bracket hugs its members exactly, so neighbouring chips sit edge to
+        -- edge and read as one long slab with seams. Pad the bracket itself to
+        -- push them apart — insetting background.padding instead shrinks the
+        -- drawn slab inwards and the contents spill out of their own chip.
+        padding_left = 8,
+        padding_right = 8,
         background = {
             color = ctx.style.item_bg,
             corner_radius = ctx.style.item_radius,
             height = ctx.style.item_height,
-            -- A bracket hugs its members exactly, so neighbouring chips end up
-            -- edge to edge and read as one long slab with seams. Inset the
-            -- drawn background to put real air between them.
-            padding_left = 9,
-            padding_right = 9,
+            -- Explicitly zero: the bracket's own padding is inherited by its
+            -- background, which would inset the slab by the very amount meant
+            -- to separate it from the next chip and clip the contents.
+            padding_left = 0,
+            padding_right = 0,
         },
     }
     for key, value in pairs(opts or {}) do props[key] = value end

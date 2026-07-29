@@ -31,8 +31,11 @@ function M.apply(ctx)
     })
     sbar.default({
         updates = "when_shown",
-        padding_left = 2,
-        padding_right = 2,
+        -- Room for ctx.chip's inset to live in: the bracket's padding doubles
+        -- as its background inset, so with items flush to the edge any gap
+        -- between chips is carved out of their own contents.
+        padding_left = 8,
+        padding_right = 8,
         icon = {
             font = { family = ctx.settings.font.text, style = "SemiBold", size = 13.0 },
             color = p.fg,
