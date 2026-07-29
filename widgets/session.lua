@@ -40,6 +40,7 @@ return function(ctx)
         position = "right",
         y_offset = -6,
         drawing = false,
+        update_freq = 3,
         icon = { drawing = false },
         label = {
             string = "",
@@ -110,6 +111,42 @@ return function(ctx)
     local deadline, total, kind = nil, nil, nil
     local absent = false
 
+    -- Hovering reveals the whole intent. The box stays the same width and the
+    -- text slides inside it, rather than the chip widening and shoving every
+    -- chip to its left along with it. Same mechanism as the media title:
+    -- sketchybar's scroll_texts does not move text, but a label clips to its
+    -- width, so animating its left padding negative walks the rest into view.
+    local intent, hovering, slide_out = "", false, false
+
+    local function name_px(value)
+        return (utf8.len(tostring(value or "")) or 0) * 8.0 * 0.60
+    end
+
+    local function slide_reset()
+        slide_out = false
+        name:set({ label = { padding_left = 0, max_chars = 14, string = intent } })
+    end
+
+    local function slide_step()
+        local over = math.ceil(name_px(intent) - STACK_W)
+        if over <= 0 then return end
+        slide_out = not slide_out
+        local frames = math.max(70, math.min(160, math.floor(over * 2.6)))
+        sbar.animate("sin", frames, function()
+            name:set({ label = { padding_left = slide_out and -over or 0 } })
+        end)
+    end
+
+    -- max_chars is dropped while hovering, or the marquee would only ever walk
+    -- across the truncated 14 characters.
+    local function hover(on)
+        if on == hovering then return end
+        hovering = on
+        if not on then return slide_reset() end
+        name:set({ label = { max_chars = 0, string = intent } })
+        slide_step()
+    end
+
     -- Three states: running (ring + countdown + intent), idle (an empty ring
     -- you can still click to start something), and absent — the chip only
     -- disappears when Session itself isn't installed.
@@ -173,7 +210,14 @@ return function(ctx)
         end
         deadline = os.time() + (tonumber(env.LEFT) or 0)
         total, kind = tonumber(env.TOTAL), env.KIND
-        name:set({ label = { string = (env.TITLE ~= "" and env.TITLE or "focus") } })
+        -- Keep the untruncated intent: it is what the marquee walks through, and
+        -- max_chars only governs what the collapsed chip shows.
+        intent = (env.TITLE ~= "" and env.TITLE) or "focus"
+        if hovering then
+            name:set({ label = { max_chars = 0, string = intent } })
+        else
+            slide_reset()
+        end
         tick()
     end
 
@@ -192,9 +236,17 @@ return function(ctx)
         icon:set({ popup = { drawing = "toggle" } })
     end
 
+    -- One leg of the marquee per tick, only while the pointer is on the chip.
+    name:subscribe("routine", function()
+        if hovering then slide_step() end
+    end)
+
     for _, item in ipairs({ icon, time, name }) do
         item:subscribe("mouse.clicked", open_popup)
+        item:subscribe("mouse.entered", function() hover(true) end)
+        item:subscribe("mouse.exited", function() hover(false) end)
         item:subscribe("mouse.exited.global", function()
+            hover(false)
             icon:set({ popup = { drawing = false } })
         end)
     end
