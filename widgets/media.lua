@@ -22,6 +22,19 @@ return function(ctx)
         return out ~= ""
     end
 
+    -- Fixed box, scrolling contents: sizing it to the title let a long one
+    -- expand leftwards far enough to run under the notch.
+    local TEXT_W = media.text_width or 150
+
+    -- Icons have no max_chars, and the artist rides in the icon slot with width
+    -- 0, so nothing bounds it — clip it here. utf8.offset rather than a byte
+    -- sub, or an accented name gets cut mid-character.
+    local function clip(value, limit)
+        local str = tostring(value or "")
+        local cut = utf8.offset(str, limit + 1)
+        return cut and (str:sub(1, cut - 1) .. "…") or str
+    end
+
     -- EQ: a cluster of thin bars whose heights are driven by helpers/sonar.sh
     local cover, eq_bars
     local EQ_N = media.eq_bars or 12
@@ -69,47 +82,38 @@ return function(ctx)
         table.insert(ctx.groups.right, cover.name)
     end
 
-    -- Two-line stack: artist high, title low, sharing one horizontal band.
-    -- Both labels must carry the SAME fixed width for that to work (the same
-    -- recipe the session chip uses): item width = 0 alone does not collapse
-    -- the artist, it just parks it beside the title at a different height,
-    -- which reads as two ragged lines. Expands from 0 on hover.
-    local artist = sbar.add("item", "media.artist", {
+    -- Two-line stack in ONE item: the artist rides in the icon slot at width 0,
+    -- so it costs nothing horizontally and draws above the label rather than
+    -- beside it. As two separate items they could only be aligned by giving
+    -- both the same fixed width, and a zero-width item does not collapse — it
+    -- just parks itself alongside at a different height, which reads as two
+    -- ragged lines. scroll_texts runs a title too long for the box.
+    local text = sbar.add("item", "media.text", {
         position = "right",
         drawing = false,
         updates = true,
-        width = 0,
+        scroll_texts = true,
         padding_left = 0,
         padding_right = 0,
-        icon = { drawing = false },
-        label = {
+        icon = {
+            drawing = false,
             width = 0,
-            align = "left",
-            font = { size = 9 },
+            font = { family = ctx.settings.font.text, size = 9.0 },
             color = ctx.with_alpha(p.fg, 0.6),
-            max_chars = 18,
+            padding_left = 0,
+            padding_right = 6,
             y_offset = 6,
         },
-    })
-    local title = sbar.add("item", "media.title", {
-        position = "right",
-        drawing = false,
-        updates = true,
-        padding_left = 0,
-        padding_right = 0,
-        icon = { drawing = false },
         label = {
             width = 0,
-            align = "left",
             font = { size = 11 },
-            max_chars = 16,
+            padding_left = 0,
+            padding_right = 10,  -- keep the title off the album art
             y_offset = -5,
         },
     })
-    table.insert(ctx.groups.right, artist.name)
-    table.insert(ctx.groups.right, title.name)
+    table.insert(ctx.groups.right, text.name)
 
-    local TEXT_W = 128   -- 16 chars at 11pt overflowed a 110px box
     local mc = "PATH=/opt/homebrew/bin:$PATH media-control "
     local animate_detail = function() end   -- no-op unless the cover exists
     if cover then
@@ -133,9 +137,9 @@ return function(ctx)
         animate_detail = function(detail)
             if detail == expanded then return end
             expanded = detail
+            text:set({ icon = { drawing = detail } })
             sbar.animate("tanh", 20, function()
-                artist:set({ label = { width = detail and TEXT_W or 0 } })
-                title:set({ label = { width = detail and TEXT_W or 0 } })
+                text:set({ label = { width = detail and TEXT_W or 0 } })
             end)
         end
 
@@ -144,12 +148,11 @@ return function(ctx)
         cover:subscribe("mouse.clicked", function()
             cover:set({ popup = { drawing = "toggle" } })
         end)
-        title:subscribe("mouse.exited.global", function()
+        text:subscribe("mouse.exited.global", function()
             cover:set({ popup = { drawing = false } })
         end)
     else
-        title:set({ label = { width = TEXT_W } })
-        artist:set({ label = { width = TEXT_W } })
+        text:set({ label = { width = TEXT_W }, icon = { drawing = true } })
     end
 
     -- The slab covers only the always-on part. Including the hover text made
@@ -162,7 +165,7 @@ return function(ctx)
     if cover then table.insert(members, cover.name) end
     local backdrop = ctx.chip("media.chip", members, { drawing = false })
 
-    local anchor = cover or title
+    local anchor = cover or text
     local has_art = nil
     sbar.add("event", "media_update")
     -- Picking an output used to fire system_woke, which six widgets listen to:
@@ -204,8 +207,7 @@ return function(ctx)
         local drawing = playing and whitelist[env.APP] or false
 
         backdrop:set({ drawing = drawing })
-        artist:set({ drawing = drawing, label = env.ARTIST })
-        title:set({ drawing = drawing, label = env.TITLE })
+        text:set({ drawing = drawing, label = env.TITLE, icon = { string = clip(env.ARTIST, 22) } })
         if eq_bars then
             for _, bar in ipairs(eq_bars) do bar:set({ drawing = drawing }) end
         end

@@ -23,6 +23,7 @@ return {
         enabled = true,
         cover = true,        -- album art, with controls in its popup
         sonar = true,        -- spectrum EQ (needs cava; see audio.auto_route)
+        text_width = 150,    -- px box for the hover text; long titles scroll inside it
         eq_bars = 12,
         eq_height = 16,      -- px at full scale
         whitelist = { ["com.spotify.client"] = true, ["com.apple.Music"] = true },
