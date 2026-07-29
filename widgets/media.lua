@@ -140,7 +140,8 @@ return function(ctx)
         if not eq_bars then return end
         sbar.exec("pkill -f 'sketchybar/helpers/sonar[.]sh' >/dev/null 2>&1;"
             .. " pkill -f 'cava -[p]' >/dev/null 2>&1; pkill -f 'audiotap/bin/audiota[p]' >/dev/null 2>&1; "
-            .. ctx.detached("SONAR_BARS=" .. EQ_N .. " SONAR_HEIGHT=" .. EQ_H
+            -- `env` rather than a bare VAR=… prefix: the detach wrapper execs.
+            .. ctx.detached("env SONAR_BARS=" .. EQ_N .. " SONAR_HEIGHT=" .. EQ_H
                 .. " " .. ctx.shell_quote(ctx.helper("sonar.sh"))))
     end
 
