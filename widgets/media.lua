@@ -41,17 +41,26 @@ return function(ctx)
         end
     end
 
+    -- Right-position items lay out right-to-left in creation order, so the
+    -- cover is created BEFORE the text it reveals: the hover expansion has to
+    -- grow away from the cover. With the cover left of the text it gets pushed
+    -- out from under the cursor mid-expand and enter/exit oscillate.
+    if media.cover then
+        cover = sbar.add("item", "media.cover", {
+            position = "right",
+            width = 32,
+            background = { color = p.transparent },
+            label = { drawing = false },
+            icon = { drawing = false },
+            drawing = false,
+            updates = true,
+            popup = { align = "center", horizontal = true },
+        })
+        table.insert(ctx.groups.right, cover.name)
+    end
+
     -- Two-line stack: title low, artist high; collapsed to width 0 by default,
     -- expands while hovering the cover.
-    local title = sbar.add("item", "media.title", {
-        position = "right",
-        drawing = false,
-        updates = true,
-        padding_left = 3,
-        padding_right = 0,
-        icon = { drawing = false },
-        label = { font = { size = 11 }, width = 0, max_chars = 16, y_offset = -5 },
-    })
     local artist = sbar.add("item", "media.artist", {
         position = "right",
         drawing = false,
@@ -68,21 +77,20 @@ return function(ctx)
             y_offset = 6,
         },
     })
+    local title = sbar.add("item", "media.title", {
+        position = "right",
+        drawing = false,
+        updates = true,
+        padding_left = 3,
+        padding_right = 0,
+        icon = { drawing = false },
+        label = { font = { size = 11 }, width = 0, max_chars = 16, y_offset = -5 },
+    })
+    table.insert(ctx.groups.right, artist.name)
+    table.insert(ctx.groups.right, title.name)
 
     local mc = "PATH=/opt/homebrew/bin:$PATH media-control "
-    if media.cover then
-        cover = sbar.add("item", "media.cover", {
-            position = "right",
-            width = 32,
-            background = { color = p.transparent },
-            label = { drawing = false },
-            icon = { drawing = false },
-            drawing = false,
-            updates = true,
-            popup = { align = "center", horizontal = true },
-        })
-        table.insert(ctx.groups.right, cover.name)
-
+    if cover then
         for _, action in ipairs({
             { icon = "󰒮", cmd = "previous-track" },
             { icon = "󰐎", cmd = "toggle-play-pause" },
@@ -123,8 +131,6 @@ return function(ctx)
         title:set({ label = { width = "dynamic" } })
         artist:set({ label = { width = "dynamic" } })
     end
-    table.insert(ctx.groups.right, title.name)
-    table.insert(ctx.groups.right, artist.name)
 
     local anchor = cover or title
     local last_track = nil
