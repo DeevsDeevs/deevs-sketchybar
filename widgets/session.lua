@@ -1,6 +1,6 @@
--- Session.app pomodoro. State comes from Session's shared sqlite (the
--- "translucent" group container — Session's original name): the running
--- session is the latest task whose end date is still in the future.
+-- Session.app pomodoro. State comes from helpers/session_query.sh, which reads
+-- the live block from Session's preferences — the sqlite only gets a task row
+-- once a block finishes, so it can never see what is running now.
 -- Controls via session:/// deep links. No alias — with the native menubar
 -- hidden, aliases capture a blank region.
 --
@@ -16,9 +16,9 @@ return function(ctx)
     local PIE = { "󰝦", "󰪞", "󰪟", "󰪠", "󰪡", "󰪢", "󰪣", "󰪤", "󰪥" }
     local STACK_W = 72   -- fits a 14-char intent at 8pt
 
-    -- The sqlite lives in helpers/session_query.sh. Long inline shell strings
-    -- proved unreliable through sbar.exec: the same query would return an empty
-    -- payload every few polls and blank the chip.
+    -- All the digging lives in helpers/session_query.sh. Long inline shell
+    -- strings proved unreliable through sbar.exec: the same query would return
+    -- an empty payload every few polls and blank the chip.
     local query = ctx.shell_quote(ctx.helper("session_query.sh"))
 
     -- Countdown first and zero-width so the name below governs the width;
