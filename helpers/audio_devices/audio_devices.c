@@ -199,7 +199,8 @@ static AudioDeviceID create_aggregate(CFStringRef device_uid, CFStringRef loopba
   CFDictionarySetValue(description, CFSTR(kAudioAggregateDeviceSubDeviceListKey), sub_devices);
   CFDictionarySetValue(description, CFSTR(kAudioAggregateDeviceMainSubDeviceKey), device_uid);
   CFDictionarySetValue(description, CFSTR(kAudioAggregateDeviceIsStackedKey), kCFBooleanTrue);
-  CFDictionarySetValue(description, CFSTR(kAudioAggregateDeviceIsPrivateKey), kCFBooleanTrue);
+  // Not private: a private aggregate dies with this short-lived process.
+  CFDictionarySetValue(description, CFSTR(kAudioAggregateDeviceIsPrivateKey), kCFBooleanFalse);
 
   AudioDeviceID aggregate = kAudioObjectUnknown;
   OSStatus status = AudioHardwareCreateAggregateDevice(description, &aggregate);
