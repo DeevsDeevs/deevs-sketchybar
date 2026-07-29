@@ -19,7 +19,17 @@ return function(ctx)
     })
     table.insert(ctx.groups.left, front_app.name)
 
+    -- System dialogs surface as internal window names (the accessibility
+    -- prompt is "universalAccessAuthWarn"); keep showing the last real app.
+    local system_windows = {
+        universalAccessAuthWarn = true,
+        loginwindow = true,
+        UserNotificationCenter = true,
+        CoreServicesUIAgent = true,
+    }
+
     front_app:subscribe("front_app_switched", function(env)
+        if system_windows[env.INFO] then return end
         front_app:set({ label = { string = env.INFO } })
     end)
 

@@ -214,23 +214,33 @@ static CGEventRef on_event(CGEventTapProxy proxy, CGEventType type, CGEventRef e
   target_device(&routed);
   if (!routed) return event;
 
-  // System-defined events carry the media key in data1 (field 149).
+  // Only aux-control events (the F-row media keys) carry a key in data1.
+  if (CGEventGetIntegerValueField(event, 151) != NX_SUBTYPE_AUX_CONTROL_BUTTONS) return event;
+
   int64_t data1 = CGEventGetIntegerValueField(event, 149);
   int key_code = (int)((data1 & 0xFFFF0000) >> 16);
+
+  // Decide on the key FIRST: everything that is not a volume key — brightness,
+  // playback, mission control, keyboard backlight — must pass through
+  // untouched, presses and releases alike.
+  if (key_code != NX_KEYTYPE_SOUND_UP && key_code != NX_KEYTYPE_SOUND_DOWN
+      && key_code != NX_KEYTYPE_MUTE) {
+    return event;
+  }
+
   int key_flags = (int)(data1 & 0x0000FFFF);
-  int key_state = (key_flags & 0xFF00) >> 8;
-  bool key_down = (key_state == 0x0A);
-  if (!key_down) return NULL; // swallow the release too
+  bool key_down = ((key_flags & 0xFF00) >> 8) == 0x0A;
+  if (!key_down) return NULL; // swallow the matching release
 
   CGEventFlags flags = CGEventGetFlags(event);
   bool fine = (flags & kCGEventFlagMaskShift) && (flags & kCGEventFlagMaskAlternate);
 
   switch (key_code) {
-    case NX_KEYTYPE_SOUND_UP:   adjust_volume(1, fine);  return NULL;
-    case NX_KEYTYPE_SOUND_DOWN: adjust_volume(-1, fine); return NULL;
-    case NX_KEYTYPE_MUTE:       toggle_mute();           return NULL;
-    default:                    return event;
+    case NX_KEYTYPE_SOUND_UP:   adjust_volume(1, fine);  break;
+    case NX_KEYTYPE_SOUND_DOWN: adjust_volume(-1, fine); break;
+    case NX_KEYTYPE_MUTE:       toggle_mute();           break;
   }
+  return NULL;
 }
 
 int main(int argc, char** argv) {
