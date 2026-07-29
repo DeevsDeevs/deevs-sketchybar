@@ -1,8 +1,10 @@
 -- Front app name; when menus_swap is on, clicking it swaps spaces ↔ app menus.
--- Mode lives in this variable — never derived from item state (that desyncs).
+--
+-- The swap itself lives in helpers/menus_swap.sh and is invoked as a plain
+-- click_script/script: sketchybar has to be the process that spawns the
+-- accessibility-backed `menus` helper, otherwise it returns nothing.
 return function(ctx)
     local p, c = ctx.palette, ctx.config
-    local menu_mode = false
     local max_menus = 12
 
     local front_app = sbar.add("item", "front_app", {
@@ -19,17 +21,18 @@ return function(ctx)
 
     front_app:subscribe("front_app_switched", function(env)
         front_app:set({ label = { string = env.INFO } })
-        if menu_mode then sbar.trigger("menus_refresh") end
     end)
 
     if not c.menus_swap then return end
 
     local menus_bin = ctx.helper("menus/bin/menus")
-    local menu_items = {}
+    local swap = ctx.helper("menus_swap.sh")
+
     for i = 1, max_menus do
-        local menu = sbar.add("item", "menu." .. i, {
+        sbar.add("item", "menu." .. i, {
             position = "left",
             drawing = false,
+            updates = true,
             icon = { drawing = false },
             label = {
                 font = { family = ctx.settings.font.text, style = i == 1 and "Bold" or "Regular", size = 11.5 },
@@ -37,37 +40,19 @@ return function(ctx)
                 padding_left = 6,
                 padding_right = 6,
             },
-            click_script = menus_bin .. " -s " .. i,
+            click_script = ctx.shell_quote(menus_bin) .. " -s " .. i,
         })
-        menu_items[i] = menu
     end
 
-    sbar.add("event", "menus_refresh")
-    local refresher = sbar.add("item", { drawing = false, updates = true })
+    front_app:set({ click_script = ctx.shell_quote(swap) })
 
-    local function update_menus()
-        sbar.exec(ctx.shell_quote(menus_bin) .. " -l", function(menus)
-            local id = 1
-            for menu in string.gmatch(menus, "[^\r\n]+") do
-                if id > max_menus then break end
-                menu_items[id]:set({ label = menu, drawing = true })
-                id = id + 1
-            end
-            for i = id, max_menus do menu_items[i]:set({ drawing = false }) end
-        end)
-    end
+    -- Shell-side refresher: created through the CLI so its script stays a real
+    -- shell script (a lua subscription would route it back through lua).
+    sbar.exec("sketchybar --add item menus.refresher left"
+        .. " --set menus.refresher drawing=off updates=on"
+        .. " script=" .. ctx.shell_quote(swap .. " refresh")
+        .. " --subscribe menus.refresher front_app_switched")
 
-    local function set_mode(mode)
-        menu_mode = mode
-        sbar.exec("sketchybar --set '/space\\..*/' drawing=" .. (mode and "off" or "on"))
-        front_app:set({ label = { color = mode and p.accent or p.fg } })
-        if mode then
-            update_menus()
-        else
-            for i = 1, max_menus do menu_items[i]:set({ drawing = false }) end
-        end
-    end
-
-    refresher:subscribe("menus_refresh", function() update_menus() end)
-    front_app:subscribe("mouse.clicked", function() set_mode(not menu_mode) end)
+    -- Always start in spaces mode after a reload.
+    sbar.exec(ctx.shell_quote(swap) .. " hide")
 end
