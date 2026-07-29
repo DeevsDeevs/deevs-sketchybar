@@ -13,9 +13,11 @@
 
 set -u
 DB="${SESSION_DB:-$HOME/Library/Group Containers/98JSB2MQB3.group.com.philipyoungg.translucent/Session.sqlite}"
-# No Session installed is a definite "nothing running", not a lost reply.
+# NODB (no Session installed) is distinct from IDLE (installed, nothing
+# running): the widget hides itself entirely for the former and keeps an empty
+# ring for the latter.
 if [ ! -r "$DB" ]; then
-  [ "${1:-current}" = "current" ] && printf 'IDLE\n'
+  [ "${1:-current}" = "current" ] && printf 'NODB\n'
   exit 0
 fi
 

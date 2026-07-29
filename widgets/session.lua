@@ -81,7 +81,7 @@ return function(ctx)
     local close = "; sketchybar --set " .. icon.name .. " popup.drawing=off"
     for _, action in ipairs({
         { glyph = "󰏤", link = "session:///pause" },
-        { glyph = "󰭹", link = "session:///break" },
+        { glyph = "󰅶", link = "session:///break" },
         { glyph = "󰄬", link = "session:///finish", color = p.good },
         { glyph = "󰅖", link = "session:///abandon", color = p.bad },
         { glyph = "󰑐", link = "session:///start-previous" },
@@ -113,22 +113,29 @@ return function(ctx)
 
     local deadline, total, kind = nil, nil, nil
 
-    local function show(on)
-        icon:set({ drawing = on })
-        time:set({ drawing = on })
-        name:set({ drawing = on })
-        bracket:set({ drawing = on })
-        if not on then icon:set({ popup = { drawing = false } }) end
+    -- Three states: running (ring + countdown + intent), idle (an empty ring
+    -- you can still click to start something), and absent — the chip only
+    -- disappears when Session itself isn't installed.
+    local function show(state)
+        local present = state ~= "absent"
+        icon:set({ drawing = present })
+        bracket:set({ drawing = present })
+        time:set({ drawing = state == "running" })
+        name:set({ drawing = state == "running" })
+        if state ~= "running" then
+            icon:set({ icon = { string = PIE[1], color = ctx.with_alpha(p.fg, 0.4) } })
+        end
+        if not present then icon:set({ popup = { drawing = false } }) end
     end
 
     -- Rendered every second from cached values; sqlite is only re-read
     -- periodically, so the countdown costs nothing between polls.
     local function tick()
-        if not deadline then return show(false) end
+        if not deadline then return show("idle") end
         local left = deadline - os.time()
         if left < 0 then
             deadline = nil
-            return show(false)
+            return show("idle")
         end
         local done = total and total > 0 and (1 - left / total) or 0
         local accent = kind == "rest" and p.accent2 or p.accent
@@ -139,15 +146,19 @@ return function(ctx)
             or string.format("%d:%02d", left // 60, left % 60)
         icon:set({ icon = { string = PIE[math.floor(done * 8 + 0.5) + 1], color = accent } })
         time:set({ label = { string = str, color = accent } })
-        show(true)
+        show("running")
     end
 
     local function poll()
         sbar.exec(query .. " current", function(out)
             local reply = tostring(out)
+            if reply:match("^NODB") then
+                deadline, total, kind = nil, nil, nil
+                return show("absent")
+            end
             if reply:match("^IDLE") then
                 deadline, total, kind = nil, nil, nil
-                return show(false)
+                return show("idle")
             end
             local left, tot, ztype, zname = reply:match("^RUN\t(%-?%d+)\t(%d+)\t([^\t]*)\t(.-)%s*$")
             -- Anything else is a dropped or crossed payload, not evidence that
