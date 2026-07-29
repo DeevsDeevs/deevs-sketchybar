@@ -11,8 +11,10 @@ return function(ctx)
             string = "↑ ---",
             font = { family = ctx.settings.font.numbers, size = 8.0 },
             color = ctx.with_alpha(p.fg, 0.55),
+            padding_left = 0,
+            padding_right = 0,
         },
-        padding_left = 8,
+        padding_left = 6,
     })
     local net_down = sbar.add("item", "system.net.down", {
         position = "right",
@@ -22,15 +24,28 @@ return function(ctx)
             string = "↓ ---",
             font = { family = ctx.settings.font.numbers, size = 8.0 },
             color = ctx.with_alpha(p.accent2, 0.9),
+            padding_left = 0,
+            padding_right = 0,
         },
-        padding_left = 8,
+        padding_left = 6,
     })
     local ram = sbar.add("item", "system.ram", {
         position = "right",
-        icon = { string = "󰘚", font = { size = 11.0 }, color = ctx.with_alpha(p.fg, 0.6), padding_right = 3 },
-        label = { string = "--", font = { family = ctx.settings.font.numbers, size = 10.0 } },
+        icon = {
+            string = "󰘚",
+            font = { size = 11.0 },
+            color = ctx.with_alpha(p.fg, 0.6),
+            padding_left = 0,
+            padding_right = 3,
+        },
+        label = {
+            string = "--",
+            font = { family = ctx.settings.font.numbers, size = 10.0 },
+            padding_left = 0,
+            padding_right = 0,
+        },
         update_freq = 10,
-        padding_left = 8,
+        padding_left = 6,
     })
     local cpu = sbar.add("graph", "system.cpu", 36, {
         position = "right",
@@ -43,7 +58,7 @@ return function(ctx)
         label = {
             string = "--%",
             font = { family = ctx.settings.font.numbers, size = 10.0 },
-            padding_left = 5,
+            padding_left = 4,
             padding_right = 0,
         },
     })
