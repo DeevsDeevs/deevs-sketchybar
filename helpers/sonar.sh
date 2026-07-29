@@ -8,12 +8,16 @@ export PATH="/usr/bin:/bin:/opt/homebrew/bin:$HOME/.local/share/devbox/global/de
 
 command -v cava >/dev/null 2>&1 || exit 0
 
-# Prefer BlackHole when installed: taps system audio via a Multi-Output
-# Device without stealing the default input from the microphone.
+# Tap BlackHole only when the CURRENT output routes through it (a
+# Multi-Output/aggregate device) — a plain device (AirPods, speakers)
+# bypasses BlackHole, so fall back to ambient mic instead of silence.
 SRC="auto"
-if system_profiler SPAudioDataType 2>/dev/null | grep -q "BlackHole 2ch"; then
-  SRC="BlackHole 2ch"
-fi
+default_out="$(system_profiler SPAudioDataType 2>/dev/null | awk '
+  /^        [A-Za-z]/ { name=$0; sub(/^ +/,"",name); sub(/:$/,"",name) }
+  /Default Output Device: Yes/ { print name; exit }')"
+case "$default_out" in
+  *Multi-Output*|*Aggregate*|*BlackHole*) SRC="BlackHole 2ch" ;;
+esac
 
 cfg="$(mktemp "${TMPDIR:-/tmp}/sonar-cava.XXXXXX")"
 trap 'rm -f "$cfg"' EXIT HUP INT TERM
