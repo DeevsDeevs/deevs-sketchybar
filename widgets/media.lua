@@ -82,37 +82,42 @@ return function(ctx)
         table.insert(ctx.groups.right, cover.name)
     end
 
-    -- Two-line stack in ONE item: the artist rides in the icon slot at width 0,
-    -- so it costs nothing horizontally and draws above the label rather than
-    -- beside it. As two separate items they could only be aligned by giving
-    -- both the same fixed width, and a zero-width item does not collapse — it
-    -- just parks itself alongside at a different height, which reads as two
-    -- ragged lines. scroll_texts runs a title too long for the box.
-    local text = sbar.add("item", "media.text", {
-        position = "right",
-        drawing = false,
-        updates = true,
-        scroll_texts = true,
-        padding_left = 0,
-        padding_right = 0,
-        icon = {
+    -- Two-line stack: artist above, title below, both right-aligned so they sit
+    -- against the cover however short they are. They land on the same box only
+    -- because both labels carry the SAME fixed width — item width = 0 does not
+    -- collapse the artist, it just parks it beside the title at a different
+    -- height, which reads as two ragged lines. scroll_texts runs a title too
+    -- long for the box rather than widening it.
+    local function line(name, opts)
+        local item = sbar.add("item", name, {
+            position = "right",
             drawing = false,
-            width = 0,
-            font = { family = ctx.settings.font.text, size = 9.0 },
-            color = ctx.with_alpha(p.fg, 0.6),
+            updates = true,
+            scroll_texts = true,
+            width = opts.overlay and 0 or nil,
             padding_left = 0,
-            padding_right = 6,
-            y_offset = 6,
-        },
-        label = {
-            width = 0,
-            font = { size = 11 },
-            padding_left = 0,
-            padding_right = 10,  -- keep the title off the album art
-            y_offset = -5,
-        },
+            padding_right = 0,
+            icon = { drawing = false },
+            label = {
+                width = 0,
+                align = "right",
+                font = { size = opts.size },
+                color = opts.color,
+                padding_left = 0,
+                padding_right = opts.pad,
+                y_offset = opts.y,
+            },
+        })
+        table.insert(ctx.groups.right, item.name)
+        return item
+    end
+
+    -- Artist first so it is the zero-width overlay sitting on top of the title.
+    local artist = line("media.artist", {
+        overlay = true, size = 9, y = 6, pad = 10,
+        color = ctx.with_alpha(p.fg, 0.6),
     })
-    table.insert(ctx.groups.right, text.name)
+    local title = line("media.title", { size = 11, y = -5, pad = 10, color = p.fg })
 
     local mc = "PATH=/opt/homebrew/bin:$PATH media-control "
     local animate_detail = function() end   -- no-op unless the cover exists
@@ -137,9 +142,9 @@ return function(ctx)
         animate_detail = function(detail)
             if detail == expanded then return end
             expanded = detail
-            text:set({ icon = { drawing = detail } })
             sbar.animate("tanh", 20, function()
-                text:set({ label = { width = detail and TEXT_W or 0 } })
+                artist:set({ label = { width = detail and TEXT_W or 0 } })
+                title:set({ label = { width = detail and TEXT_W or 0 } })
             end)
         end
 
@@ -148,11 +153,12 @@ return function(ctx)
         cover:subscribe("mouse.clicked", function()
             cover:set({ popup = { drawing = "toggle" } })
         end)
-        text:subscribe("mouse.exited.global", function()
+        title:subscribe("mouse.exited.global", function()
             cover:set({ popup = { drawing = false } })
         end)
     else
-        text:set({ label = { width = TEXT_W }, icon = { drawing = true } })
+        artist:set({ label = { width = TEXT_W } })
+        title:set({ label = { width = TEXT_W } })
     end
 
     -- The slab covers only the always-on part. Including the hover text made
@@ -165,7 +171,7 @@ return function(ctx)
     if cover then table.insert(members, cover.name) end
     local backdrop = ctx.chip("media.chip", members, { drawing = false })
 
-    local anchor = cover or text
+    local anchor = cover or title
     local has_art = nil
     sbar.add("event", "media_update")
     -- Picking an output used to fire system_woke, which six widgets listen to:
@@ -207,7 +213,8 @@ return function(ctx)
         local drawing = playing and whitelist[env.APP] or false
 
         backdrop:set({ drawing = drawing })
-        text:set({ drawing = drawing, label = env.TITLE, icon = { string = clip(env.ARTIST, 22) } })
+        artist:set({ drawing = drawing, label = clip(env.ARTIST, 28) })
+        title:set({ drawing = drawing, label = env.TITLE })
         if eq_bars then
             for _, bar in ipairs(eq_bars) do bar:set({ drawing = drawing }) end
         end
