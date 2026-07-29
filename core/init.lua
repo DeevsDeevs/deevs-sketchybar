@@ -50,6 +50,11 @@ function ctx.chip(name, members, opts)
             color = ctx.style.item_bg,
             corner_radius = ctx.style.item_radius,
             height = ctx.style.item_height,
+            -- A bracket hugs its members exactly, so neighbouring chips end up
+            -- edge to edge and read as one long slab with seams. Inset the
+            -- drawn background to put real air between them.
+            padding_left = 5,
+            padding_right = 5,
         },
     }
     for key, value in pairs(opts or {}) do props[key] = value end
