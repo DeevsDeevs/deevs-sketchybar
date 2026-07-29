@@ -67,9 +67,12 @@ return function(ctx)
             .. ctx.detached(ctx.shell_quote(ctx.helper("volume_keys/bin/volume_keys"))))
     end
 
+    -- Hide and drop the rows in one message: hiding over the bridge and then
+    -- removing from a second process renders twice, so the popup visibly
+    -- shrinks before it disappears.
     local function close_popup()
-        volume:set({ popup = { drawing = false } })
-        sbar.exec("sketchybar --remove '/volume.device\\..*/' >/dev/null 2>&1")
+        sbar.exec("sketchybar --set " .. volume.name .. " popup.drawing=off"
+            .. " --remove '/volume.device\\..*/' >/dev/null 2>&1")
     end
 
     -- The helper toggles by querying the live popup state rather than tracking

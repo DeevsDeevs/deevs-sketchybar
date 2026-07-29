@@ -31,8 +31,7 @@ popup_is_open() {
 # Toggle against the live state, not a remembered one: picking a device closes
 # the popup straight through the CLI, so any cached flag would go stale.
 if popup_is_open; then
-  remove_items
-  sketchybar --set "$BRACKET" popup.drawing=off
+  sketchybar --set "$BRACKET" popup.drawing=off --remove '/volume.device\..*/'
   exit 0
 fi
 
