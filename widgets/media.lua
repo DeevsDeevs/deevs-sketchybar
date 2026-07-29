@@ -118,15 +118,14 @@ return function(ctx)
         -- Plain boolean rather than a counter: the cover stops drawing when
         -- playback stops, and a hidden item never delivers the matching
         -- mouse.exited, so a counter latches and the text stays expanded.
-        -- Not tweened: the chip bracket around this cluster resizes in one
-        -- step, so animating the labels leaves the slab stretched ahead of the
-        -- text for the length of the animation. Snapping keeps them together.
         local expanded = false
         animate_detail = function(detail)
             if detail == expanded then return end
             expanded = detail
-            artist:set({ label = { width = detail and "dynamic" or 0 } })
-            title:set({ label = { width = detail and "dynamic" or 0 } })
+            sbar.animate("tanh", 20, function()
+                artist:set({ label = { width = detail and "dynamic" or 0 } })
+                title:set({ label = { width = detail and "dynamic" or 0 } })
+            end)
         end
 
         cover:subscribe("mouse.entered", function() animate_detail(true) end)
