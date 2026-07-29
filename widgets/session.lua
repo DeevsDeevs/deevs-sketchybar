@@ -111,6 +111,7 @@ return function(ctx)
     })
 
     local deadline, total, kind = nil, nil, nil
+    local absent = false
 
     -- Three states: running (ring + countdown + intent), idle (an empty ring
     -- you can still click to start something), and absent — the chip only
@@ -130,6 +131,10 @@ return function(ctx)
     -- Runs every second off the cached deadline, so the countdown is smooth
     -- between the coarser resyncs the stream sends.
     local function tick()
+        -- `absent` has to be sticky: tick() runs every second and would
+        -- otherwise re-show the chip one second after the stream hid it,
+        -- blinking forever on machines without Session.
+        if absent then return end
         if not deadline then return show("idle") end
         local left = deadline - os.time()
         if left < 0 then
@@ -153,9 +158,10 @@ return function(ctx)
     -- of polling, which froze the chip on whatever it last saw.
     local function apply(env)
         if env.STATE == "absent" then
-            deadline, total, kind = nil, nil, nil
+            deadline, total, kind, absent = nil, nil, nil, true
             return show("absent")
         end
+        absent = false
         if env.TODAY_N then
             local mins = tonumber(env.TODAY_MIN) or 0
             stats:set({
@@ -179,7 +185,7 @@ return function(ctx)
     icon:subscribe({ "routine", "forced" }, tick)
 
     local function start_stream()
-        sbar.exec("pkill -f 'sketchybar/helpers/session_stream[.]sh' >/dev/null 2>&1; "
+        sbar.exec("pkill -f 'helpers/session_stream[.]sh' >/dev/null 2>&1; "
             .. ctx.detached(ctx.shell_quote(ctx.helper("session_stream.sh"))))
     end
     start_stream()

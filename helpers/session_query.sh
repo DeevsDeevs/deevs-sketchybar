@@ -59,6 +59,10 @@ EOF
       *)       printf 'IDLE\n'; exit 0 ;;
     esac
 
+    # BSD date is an exact-format parser, so a fractional-second timestamp
+    # would fail outright and silently read as idle. Drop any ".123" first.
+    start="${start%%.*}"
+    case "$start" in *Z) ;; *) start="${start}Z" ;; esac
     started="$(date -j -u -f '%Y-%m-%dT%H:%M:%SZ' "${start:-}" +%s 2>/dev/null || true)"
     if [ -z "$started" ]; then
       printf 'IDLE\n'

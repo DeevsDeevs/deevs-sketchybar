@@ -19,6 +19,11 @@ QUERY="$DIR/session_query.sh"
 [ -x "$QUERY" ] || exit 0
 
 while :; do
+  # Detached from sketchybar, so nothing else would ever reap this: without the
+  # check it keeps polling (and spawning a handful of processes every 2s) long
+  # after the bar is gone.
+  pgrep -x sketchybar >/dev/null 2>&1 || exit 0
+
   line="$("$QUERY" current)"
 
   case "$line" in
