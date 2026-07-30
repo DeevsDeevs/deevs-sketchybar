@@ -25,7 +25,9 @@ return function(ctx)
         label = { string = "—", font = { family = ctx.settings.font.numbers } },
         update_freq = conf.poll or 5,
         updates = true, -- default when_shown gets no routine while drawing=false, so a hidden chip could never return
-        popup = { align = "right" },
+        -- Unset, a popup row inherits the bar's 28pt item height and lands ~40pt apart,
+        -- which turns a fleet into a wall.
+        popup = { align = "right", height = 22 },
     })
     table.insert(ctx.groups.right, chip.name)
     local backdrop = ctx.chip("herdr.chip", { chip.name })
@@ -105,10 +107,10 @@ return function(ctx)
                 icon = { drawing = false },
                 label = {
                     string = text,
-                    color = color or ctx.with_alpha(p.fg, 0.4),
-                    font = { size = 10.0 },
+                    color = color or ctx.with_alpha(p.fg, 0.45),
+                    font = { style = "SemiBold", size = 9.5 },
                     padding_left = 10,
-                    padding_right = 10,
+                    padding_right = 12,
                 },
             })
         end
@@ -129,14 +131,17 @@ return function(ctx)
                     -- colour is still free to carry status.
                     string = a.focused and "▸" or "●",
                     color = dot,
-                    font = { size = 9.0 },
-                    padding_left = 14,
+                    font = { size = 7.5 },
+                    padding_left = 16,
+                    padding_right = 6,
                 },
                 label = {
                     string = string.format("%s %s%s", a.agent == "claude" and "✳" or "π",
                         row_text(a), suffix or ""),
-                    color = a.agent_status == "idle" and ctx.with_alpha(p.fg, 0.75) or p.fg,
-                    padding_right = 12,
+                    color = a.agent_status == "idle" and ctx.with_alpha(p.fg, 0.7) or p.fg,
+                    font = { size = 11.0 },
+                    padding_left = 0,
+                    padding_right = 14,
                 },
                 click_script = string.format("%s; sketchybar --set herdr popup.drawing=off", focus),
             })
