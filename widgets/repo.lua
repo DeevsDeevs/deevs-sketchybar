@@ -10,9 +10,15 @@ return function(ctx)
     local cfg = type(ctx.config.repo) == "table" and ctx.config.repo or {}
 
     local BRANCH_GLYPH, COMMIT_GLYPH, DOT = "\u{e725}", "\u{e729}", "\u{f0765}"
-    -- Bounds the label at roughly 36 codepoints: the chip follows you between
-    -- repos, so a long name and a long branch must not push the bar around.
-    local NAME_MAX, BRANCH_MAX = 12, 14
+    -- JetBrainsMono advances 0.6em, so the 118px box holds ~17 characters at 11px
+    -- and ~21 at 9px. The chip follows you between repos, so neither line may
+    -- push the bar around.
+    local NAME_MAX, BRANCH_MAX = 20, 17
+
+    -- A branch's meaning is in its tail, and the type prefix carries almost none
+    -- of it: `fix/artifact-d…` says nothing where `artifact…timeout` says a lot.
+    local TYPE_PREFIX = { "feature/", "refactor/", "release/", "hotfix/",
+                          "bugfix/", "chore/", "feat/", "docs/", "test/", "fix/" }
     local CI_FLOOR = 10 -- burst guard on gh; the real cadence is ci's update_freq
 
     -- Not every non-success is a failure: a skipped or cancelled run says
@@ -49,7 +55,34 @@ return function(ctx)
     local function clip(value, limit)
         local str = tostring(value or "")
         local cut = utf8.offset(str, limit + 1)
-        return cut and (str:sub(1, cut - 1) .. "…") or str
+        return cut and string.format("%s…", str:sub(1, cut - 1)) or str
+    end
+
+    -- Ellipsis in the middle, keeping both ends.
+    local function middle_clip(value, limit)
+        local str = tostring(value or "")
+        local len = utf8.len(str) or #str
+        if len <= limit or limit < 3 then return clip(value, limit) end
+        local head = (limit - 1) // 2
+        local tail = limit - 1 - head
+        local a = utf8.offset(str, head + 1) or 1
+        local b = utf8.offset(str, len - tail + 1) or 1
+        -- Don't strand a separator against the ellipsis ("artifact…-timeout").
+        return string.format("%s…%s",
+            (str:sub(1, a - 1):gsub("[-_/%.]+$", "")),
+            (str:sub(b):gsub("^[-_/%.]+", "")))
+    end
+
+    local function short_branch(value, limit)
+        local str = tostring(value or "")
+        local lower = str:lower()
+        for _, prefix in ipairs(TYPE_PREFIX) do
+            if lower:sub(1, #prefix) == prefix then
+                str = str:sub(#prefix + 1)
+                break
+            end
+        end
+        return middle_clip(str, limit)
     end
 
     -- SbarLua pushes the child's stdout with lua_pushstring over a buffer it
@@ -79,44 +112,157 @@ return function(ctx)
         ctx.cluster("repo", ci.name)
     end
 
+    -- Two-line stack, same construction as the media widget: the repo name sits
+    -- above the branch. They share one box only because both labels carry the
+    -- SAME fixed width — width = 0 on the item does not collapse the upper line,
+    -- it just parks it beside the lower one at a different height, which reads as
+    -- two ragged lines. The upper line is created first so it is the zero-width
+    -- overlay sitting on top.
+    local TEXT_W = 118
+
     -- The dirty count also moves when an editor writes or a rebase runs in
     -- another tab, neither of which fires the shell hook, so a routine floor
     -- stays; 15s is live enough and far below the rate that starves callbacks.
+    local top_line = sbar.add("item", "widgets.repo.name", {
+        position = "right",
+        width = 0,
+        updates = true,
+        padding_left = 0,
+        padding_right = 0,
+        icon = { drawing = false },
+        label = {
+            string = "", width = TEXT_W, align = "left",
+            font = { size = 9.0 }, color = ctx.with_alpha(p.fg, 0.5),
+            padding_left = 0, padding_right = 0, y_offset = 6,
+        },
+    })
+    table.insert(ctx.groups.right, top_line.name)
+    ctx.cluster("repo", top_line.name)
+
     local repo = sbar.add("item", "widgets.repo", {
         position = "right",
         icon = { string = BRANCH_GLYPH, font = { size = 12.0 }, color = ctx.with_alpha(p.fg, 0.7) },
-        label = { string = "—", color = ctx.with_alpha(p.fg, 0.8) },
+        label = {
+            string = "—", width = TEXT_W, align = "left",
+            font = { size = 11.0 }, color = ctx.with_alpha(p.fg, 0.9),
+            y_offset = -5,
+        },
         update_freq = 15,
         updates = true,
+        popup = { align = "center" },
     })
     table.insert(ctx.groups.right, repo.name)
     ctx.cluster("repo", repo.name)
 
+    -- Popup rows carry the detail the chip has no room for. They join neither
+    -- ctx.groups.right nor the cluster: popup children are not bar items.
+    local ROWS = { "repo", "branch", "upstream", "changes", "last", "ci" }
+    local rows, actions = {}, {}
+    for _, key in ipairs(ROWS) do
+        rows[key] = sbar.add("item", string.format("widgets.repo.row.%s", key), {
+            position = string.format("popup.%s", repo.name),
+            icon = { string = key, width = 76, align = "left",
+                     color = ctx.with_alpha(p.fg, 0.45) },
+            label = { string = "—", width = 300, align = "left" },
+        })
+        -- Rows act on click. No click_script — an item that has one never
+        -- forwards mouse events, and the popup needs mouse.exited.global to close.
+        rows[key]:subscribe("mouse.clicked", function()
+            repo:set({ popup = { drawing = false } })
+            local action = actions[key]
+            if action then sbar.exec(action()) end
+        end)
+    end
+
+    -- $EDITOR rather than a hardcoded editor, and only its first word: the value
+    -- may carry flags, and a blocking one ("zeditor --wait") would hold the exec
+    -- child until SbarLua's alarm(60) kills it. Falls back to `open`.
+    local function in_editor(path)
+        return string.format(
+            "set -- ${EDITOR:-open}; exec \"$1\" %s >/dev/null 2>&1 &",
+            ctx.shell_quote(path))
+    end
+
     local root, name, branch, sha, dirty
+    local staged, unstaged, untracked, ahead, behind, upstream, subject
     local here = true  -- is the shell's reported cwd inside `root`
     local misses = 0
     local seen_cwd, seen_at = nil, 0
     local ci_key, ci_at = "", 0
-    local paint, refresh, poll, ci_fetch, ci_track
+    local ci_text, ci_run = "—", nil
+    local paint, refresh, poll, ci_fetch, ci_track, fill
 
     paint = function()
         if not root then
+            top_line:set({ label = { string = "" } })
             return repo:set({
                 icon = { string = BRANCH_GLYPH, color = ctx.with_alpha(p.fg, 0.3) },
                 label = { string = "—", color = ctx.with_alpha(p.fg, 0.4) },
             })
         end
-        local text = clip(name, NAME_MAX) .. " " .. (branch and clip(branch, BRANCH_MAX) or sha or "?")
-        if (dirty or 0) > 0 then text = text .. " ±" .. dirty end
+        -- string.format throughout, never `..`: see ctx.shell_quote in core/init.lua.
+        local suffix = (dirty or 0) > 0 and string.format(" ±%d", dirty) or ""
+        local lower = branch
+            and short_branch(branch, BRANCH_MAX - #suffix)
+            or sha or "?"
+        -- Away from the repo the chip is a memory rather than a location: dimming
+        -- says so without the reflow that hiding it would cause.
+        top_line:set({ label = {
+            string = clip(name, NAME_MAX),
+            color = ctx.with_alpha(p.fg, here and 0.5 or 0.25),
+        } })
         repo:set({
             -- Detached HEAD is normal (mid-rebase, a checked-out tag) and has no
             -- branch name, so it shows the short SHA under a commit glyph.
-            -- Away from the repo the chip is a memory rather than a location:
-            -- dimming says so without the reflow that hiding it would cause.
             icon = { string = branch and BRANCH_GLYPH or COMMIT_GLYPH,
                      color = ctx.with_alpha(p.fg, here and 0.7 or 0.3) },
-            label = { string = text, color = ctx.with_alpha(p.fg, here and 0.9 or 0.45) },
+            label = { string = string.format("%s%s", lower, suffix),
+                      color = ctx.with_alpha(p.fg, here and 0.9 or 0.45) },
         })
+    end
+
+    -- The popup is where the untruncated truth lives, so nothing here is clipped
+    -- except the commit subject, which has no natural bound.
+    fill = function()
+        local function set(key, value, color)
+            rows[key]:set({ label = { string = value or "—",
+                color = color or ctx.with_alpha(p.fg, 0.9) } })
+        end
+        set("repo", name)
+        set("branch", branch or (sha and string.format("detached at %s", sha)))
+        if upstream and upstream ~= "-" then
+            set("upstream", string.format("%s   ↑%d ↓%d", upstream, ahead or 0, behind or 0),
+                (behind or 0) > 0 and p.warn or nil)
+        else
+            set("upstream", "none", ctx.with_alpha(p.fg, 0.45))
+        end
+        if (dirty or 0) == 0 then
+            set("changes", "clean", p.good)
+        else
+            set("changes", string.format("%d staged · %d unstaged · %d untracked",
+                staged or 0, unstaged or 0, untracked or 0), p.warn)
+        end
+        set("last", sha and string.format("%s  %s", sha, clip(subject, 44)))
+        set("ci", ci_text)
+
+        -- gh browse and gh run view resolve the remote themselves, so nothing
+        -- here has to know the forge URL.
+        actions.repo = root and function() return in_editor(root) end or nil
+        actions.branch = actions.repo
+        actions.changes = actions.repo
+        actions.last = (root and sha) and function()
+            return string.format("cd %s && gh browse %s </dev/null >/dev/null 2>&1 &",
+                ctx.shell_quote(root), ctx.shell_quote(sha))
+        end or nil
+        -- The branch's tree, not the commit: they are different questions.
+        actions.upstream = (root and branch) and function()
+            return string.format("cd %s && gh browse --branch %s </dev/null >/dev/null 2>&1 &",
+                ctx.shell_quote(root), ctx.shell_quote(branch))
+        end or nil
+        actions.ci = (root and ci_run) and function()
+            return string.format("cd %s && gh run view %d --web </dev/null >/dev/null 2>&1 &",
+                ctx.shell_quote(root), ci_run)
+        end or nil
     end
 
     -- One exec answers root, branch, commit and dirty count together, for one
@@ -141,7 +287,8 @@ return function(ctx)
                 return paint()
             end
 
-            local top, head, oid, count = rest:match("^([^\t]*)\t([^\t]*)\t([^\t]*)\t(%d+)$")
+            local top, head, oid, count, st, un, q, ah, bh, up, subj = rest:match(
+                "^([^\t]*)\t([^\t]*)\t([^\t]*)\t(%d+)\t(%d+)\t(%d+)\t(%d+)\t(%d+)\t(%d+)\t([^\t]*)\t?(.*)$")
             if not top then
                 -- One bad read is usually contention (an index.lock mid-rebase),
                 -- not a lost repo; only a repeated one retires the chip.
@@ -158,7 +305,10 @@ return function(ctx)
             branch = head ~= "(detached)" and head or nil
             sha = oid:match("^%x+$") and oid or nil -- "(initial)" before the first commit
             dirty = tonumber(count)
+            staged, unstaged, untracked = tonumber(st), tonumber(un), tonumber(q)
+            ahead, behind, upstream, subject = tonumber(ah), tonumber(bh), up, subj
             paint()
+            fill()
             ci_track()
         end)
     end
@@ -177,7 +327,7 @@ return function(ctx)
         -- a terminal, and a child blocked for its alarm(60) is worse than a
         -- missing colour.
         sbar.exec(string.format(
-            "cd %s && gh run list --branch %s --limit 1 --json status,conclusion </dev/null 2>/dev/null",
+            "cd %s && gh run list --branch %s --limit 1 --json status,conclusion,databaseId </dev/null 2>/dev/null",
             ctx.shell_quote(root), ctx.shell_quote(branch)), function(out)
             -- Array/object stdout arrives already parsed into a table. gh prints
             -- nothing at all when there is no GitHub remote, no run on this
@@ -185,10 +335,17 @@ return function(ctx)
             local run = type(out) == "table" and out[1] or nil
             local status = type(run) == "table" and run.status or nil
             if type(status) ~= "string" then
+                ci_text, ci_run = "none", nil
+                fill()
                 return ci:set({ drawing = false, update_freq = 300 })
             end
+            -- `gh run view --web` refuses without an id when not interactive, so
+            -- the row is only clickable once we have one.
+            ci_run = tonumber(run.databaseId)
             local conclusion = type(run.conclusion) == "string" and run.conclusion or nil
             local running = status ~= "completed"
+            ci_text = running and status or (conclusion or status)
+            fill()
             ci:set({
                 drawing = true,
                 -- Only spin the timer while a run is actually in flight.
@@ -200,7 +357,7 @@ return function(ctx)
 
     ci_track = function()
         if not ci then return end
-        local key = (root or "") .. "\n" .. (branch or "")
+        local key = string.format("%s\n%s", root or "", branch or "")
         if key == ci_key then return end
         ci_key = key
         -- A verdict belongs to one repo+branch; carrying the colour across a
@@ -220,6 +377,17 @@ return function(ctx)
     -- The dot keeps its own slower clock: the branch it reports on only changes
     -- when the status read says so, and every tick of this one is a network call.
     if ci then ci:subscribe({ "routine", "forced", "system_woke" }, ci_fetch) end
+
+    -- No click_script: an item that has one never forwards mouse events to the
+    -- lua bridge, so mouse.exited.global would never fire and the popup would
+    -- stay open until clicked again.
+    repo:subscribe("mouse.clicked", function()
+        repo:set({ popup = { drawing = "toggle" } })
+        refresh()
+    end)
+    repo:subscribe("mouse.exited.global", function()
+        repo:set({ popup = { drawing = false } })
+    end)
 
     if not pinned then
         repo:subscribe("repo_cwd", function(env)

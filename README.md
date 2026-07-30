@@ -90,6 +90,19 @@ Setting `path` pins the chip to one repo instead and ignores the hook. Outside a
 repo the chip keeps the last one and dims, rather than reflowing the bar on every
 `cd` to `~`.
 
+Click it for the full branch, upstream with ahead/behind, staged · unstaged ·
+untracked counts, the last commit and the CI verdict in words. Those rows act:
+repo, branch and changes open the checkout in `$EDITOR`, last and upstream run
+`gh browse`, and ci opens the run.
+
+The dot beside it is CI for the current branch — green `success`, amber running,
+red `failure` or `timed_out`, dim for `skipped`/`cancelled`/`neutral` (which say
+nothing about the code), and absent when there is no run, no GitHub remote or no
+`gh`. The `servers` dots read the same way: green reachable, red not, dim not yet
+probed. A private repo opens as a GitHub *404* rather than a permission error if
+the browser is not signed in to an account with access — that is GitHub, not a
+bad link.
+
 Ships as `glass` · `everforest` · translucency `0.66`, with sonar, session and
 herdr on.
 
