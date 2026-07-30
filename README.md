@@ -84,6 +84,11 @@ configure twice. The chip shows the shortest unambiguous tail of the alias
 (`deevs.hetzner.berezka` and `deevs.aws.berezka` render as `hetzner.berezka` and
 `aws.berezka`).
 
+Remote herdr runs through `$SHELL -ic` rather than a bare `ssh host herdr …`.
+Version managers (devbox, nix, mise, asdf) put the binary on `PATH` from the
+interactive rc, which plain ssh never sources — without this the host reports
+"no agents" while agents are running on it. Your rc must not print to stdout.
+
 Remote perf is **polled, not pushed**. Local CPU and network come from C event
 providers that fire every 2s; nothing on another machine can push into your bar,
 so a remote target is one `ssh` per `poll` seconds reading `/proc`. The host needs

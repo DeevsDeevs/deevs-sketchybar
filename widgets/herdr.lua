@@ -30,12 +30,22 @@ return function(ctx)
     table.insert(ctx.groups.right, chip.name)
     local backdrop = ctx.chip("herdr.chip", { chip.name })
 
-    -- ConnectTimeout bounds only the handshake; ServerAlive deadlines the established session.
+    -- `$SHELL -ic`, not a bare command: version managers put herdr on PATH from the
+    -- interactive rc, which plain ssh never sources, and the host then reads as
+    -- "no agents" while agents are running on it.
+    -- string.format, never `..`: concatenation drops an operand and builds
+    -- `-o ConnectTimeout=4'host'`, which ssh rejects with empty stdout.
+    -- ConnectTimeout bounds only the handshake; ServerAlive deadlines the live session.
+    local function over_ssh(host, command)
+        return string.format(
+            "ssh -o BatchMode=yes -o ConnectTimeout=4 -o ServerAliveInterval=2 -o ServerAliveCountMax=2 %s %s",
+            ctx.shell_quote(host.ssh),
+            ctx.shell_quote(string.format("$SHELL -ic %s", ctx.shell_quote(command))))
+    end
+
     local function host_cmd(host)
         if host.ssh then
-            return "ssh -o BatchMode=yes -o ConnectTimeout=2"
-                .. " -o ServerAliveInterval=2 -o ServerAliveCountMax=2 "
-                .. ctx.shell_quote(host.ssh) .. " herdr agent list 2>/dev/null"
+            return string.format("%s 2>/dev/null", over_ssh(host, "herdr agent list"))
         end
         return "herdr agent list 2>/dev/null"
     end
@@ -82,8 +92,8 @@ return function(ctx)
                     or ctx.with_alpha(p.fg, 0.3)
                 local title = (a.terminal_title_stripped or a.terminal_title or a.agent or "?")
                 local focus = host.ssh
-                    and ("ssh -o BatchMode=yes " .. ctx.shell_quote(host.ssh) .. " herdr agent focus " .. ctx.shell_quote(a.pane_id))
-                    or ("herdr agent focus " .. ctx.shell_quote(a.pane_id))
+                    and over_ssh(host, string.format("herdr agent focus %s", ctx.shell_quote(a.pane_id)))
+                    or string.format("herdr agent focus %s", ctx.shell_quote(a.pane_id))
                 sbar.add("item", "herdr.row." .. n, {
                     position = "popup." .. chip.name,
                     icon = {
@@ -110,9 +120,15 @@ return function(ctx)
         end
     end
 
+    -- A reply from the host we just left would land after the reset and be counted into
+    -- the new one. Bumped only on retarget, so a slow reply from the current host still lands.
+    local epoch = 0
+
     local function poll()
+        local mine = epoch
         for _, host in ipairs(hosts) do
             sbar.exec(host_cmd(host), function(result)
+                if mine ~= epoch then return end
                 if type(result) == "table" and result.result and result.result.agents then
                     fleet[host.name] = result.result.agents
                 elseif not host.ssh then
@@ -139,7 +155,8 @@ return function(ctx)
             if not env.HOST or env.HOST == "" or env.HOST == target then return end
             target = env.HOST
             hosts = resolve()
-            fleet = {}   -- the old host's agents would keep counting into the chip
+            fleet = {}
+            epoch = epoch + 1
             poll()
         end)
     end
