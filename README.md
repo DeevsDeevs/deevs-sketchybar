@@ -101,16 +101,20 @@ only useful on speakers.
 
 #### Volume keys while routed
 
-Aggregate devices expose no volume of their own, so AppleScript reports
-`missing value` for them. macOS itself still drives the underlying device, so
-the F-row keys and the system HUD keep working — no extra piece required.
+Aggregate devices expose no volume of their own — AppleScript reports
+`missing value` for one — and macOS does **not** quietly fall through to the
+device underneath. While `auto_route` is on, the F-row volume keys and the
+system HUD do nothing by themselves, so `audio.volume_keys = true` is required
+rather than optional. Both ship on together for that reason.
 
-If yours ever go dead while routed, set `audio.volume_keys = true`:
-`helpers/volume_keys` then taps the three volume keys and applies them to the
-real device beneath the aggregate, drawing the same system HUD through
-`OSDUIHelper`. It is off by default because nothing should sit in your input
-path unless it earns its place; it consumes only volume/mute, and every other
-media key passes through untouched.
+`helpers/volume_keys` taps the three volume keys, applies them to the real
+device beneath the aggregate, and draws the ordinary system HUD through
+`OSDUIHelper`. It consumes only volume and mute — brightness, playback, mission
+control and keyboard backlight pass through untouched — and it stands down
+whenever the aggregate is not the default output.
+
+Turn `auto_route` off and you can turn this off with it: on a plain device
+macOS handles the keys itself, and you lose only the EQ.
 
 #### Why not driverless?
 

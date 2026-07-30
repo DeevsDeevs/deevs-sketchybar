@@ -56,7 +56,7 @@ return {
     -- the bar's own volume chip (click/scroll) keeps working either way.
     audio = {
         auto_route = true,   -- route through <device + BlackHole> so sonar hears music
-        volume_keys = false, -- enable only if the media keys stop working while routed
+        volume_keys = true,  -- required while auto_route is on: see the note above
     },
     battery  = { enabled = true },
     calendar = { enabled = true },

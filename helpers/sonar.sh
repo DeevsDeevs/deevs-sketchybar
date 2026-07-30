@@ -13,13 +13,12 @@ export PATH="/usr/bin:/bin:/opt/homebrew/bin:$HOME/.local/share/devbox/global/de
 
 command -v cava >/dev/null 2>&1 || exit 0
 
-# Single instance, enforced here rather than by the caller's pkill. system_woke
-# and audio_route_changed routinely fire together (waking often changes the
-# default output), each in its own forked shell, so the two pkill/spawn pairs can
-# interleave and leave two cava trees fighting over the same bars.
-LOCK="${TMPDIR:-/tmp}/sketchybar-sonar.lock"
-mkdir "$LOCK" 2>/dev/null || exit 0
-
+# Deliberately NOT holding a single-instance lock here. A mkdir lock loses the
+# startup race: start_sonar pkills the previous instance and spawns the next
+# immediately, so the new mkdir runs before the dying one's EXIT trap releases
+# it, and the replacement exits silently leaving no EQ at all. Overlapping
+# instances are rare (they need system_woke and audio_route_changed to interleave)
+# and self-heal on the next reload; no EQ does not.
 BARS="${SONAR_BARS:-12}"
 MAX_H="${SONAR_HEIGHT:-16}"   # px at full scale
 
@@ -29,7 +28,7 @@ if system_profiler SPAudioDataType 2>/dev/null | grep -q "BlackHole 2ch"; then
 fi
 
 cfg="$(mktemp "${TMPDIR:-/tmp}/sonar-cava.XXXXXX")"
-trap 'rm -f "$cfg"; rmdir "$LOCK" 2>/dev/null' EXIT HUP INT TERM
+trap 'rm -f "$cfg"' EXIT HUP INT TERM
 cat >"$cfg" <<EOF
 [general]
 bars = ${BARS}

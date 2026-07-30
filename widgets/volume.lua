@@ -68,9 +68,14 @@ return function(ctx)
     -- and a path pattern misses one launched from its own directory, where argv
     -- is just "./bin/volume_keys". A stray tap is not cosmetic — it sits in the
     -- keyboard event path.
-    sbar.exec("pkill -x volume_keys >/dev/null 2>&1")
+    -- Reap and respawn in ONE shell: as two sbar.exec calls the ordering is not
+    -- guaranteed, and the pkill lands after the spawn and kills the tap it was
+    -- meant to replace.
+    local reap = "pkill -x volume_keys >/dev/null 2>&1"
     if (ctx.config.audio or {}).volume_keys then
-        sbar.exec(ctx.detached(ctx.shell_quote(ctx.helper("volume_keys/bin/volume_keys"))))
+        sbar.exec(reap .. "; " .. ctx.detached(ctx.shell_quote(ctx.helper("volume_keys/bin/volume_keys"))))
+    else
+        sbar.exec(reap)
     end
 
     -- Hide and drop the rows in one message: hiding over the bridge and then

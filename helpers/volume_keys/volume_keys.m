@@ -21,6 +21,16 @@
 #define AGGREGATE_UID "com.deevs.sketchybar.output"
 #define VOLUME_STEP (1.0f / 16.0f)
 
+// VK_DEBUG only. Kept out of /tmp, which is world-writable and shared: a fixed
+// name there is a symlink another local user can pre-seed.
+static const char* vk_log_path(void) {
+  static char path[1024];
+  if (path[0]) return path;
+  const char* dir = getenv("TMPDIR");
+  snprintf(path, sizeof(path), "%svk.log", (dir && *dir) ? dir : "/tmp/");
+  return path;
+}
+
 static CFStringRef copy_device_string(AudioDeviceID device, AudioObjectPropertySelector selector) {
   AudioObjectPropertyAddress address = { selector, kAudioObjectPropertyScopeGlobal,
                                          kAudioObjectPropertyElementMain };
@@ -224,7 +234,7 @@ static CGEventRef on_event(CGEventTapProxy proxy, CGEventType type, CGEventRef e
   bool released = key_state == 0x0B;
 
   if (getenv("VK_DEBUG")) {
-    FILE* log = fopen("/tmp/vk.log", "a");
+    FILE* log = fopen(vk_log_path(), "a");
     if (log) { fprintf(log, "code=%d state=0x%02X\n", key_code, key_state); fclose(log); }
   }
 
@@ -258,7 +268,7 @@ int main(int argc, char** argv) {
     return 0;
   }
 
-  if (getenv("VK_DEBUG")) { FILE* l = fopen("/tmp/vk.log", "a"); if (l) { fprintf(l, "starting\n"); fclose(l); } }
+  if (getenv("VK_DEBUG")) { FILE* l = fopen(vk_log_path(), "a"); if (l) { fprintf(l, "starting\n"); fclose(l); } }
   CFMachPortRef tap = CGEventTapCreate(kCGSessionEventTap, kCGHeadInsertEventTap,
                                        kCGEventTapOptionDefault,
                                        CGEventMaskBit(NX_SYSDEFINED), on_event, NULL);
