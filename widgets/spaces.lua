@@ -36,7 +36,6 @@ return function(ctx)
     for _, i in ipairs(active_space_indices()) do
         local ramp = p.mood or {}
         local accent = (c.mood and #ramp > 0) and ramp[((i - 1) % #ramp) + 1] or ctx.with_alpha(p.fg, 0.18)
-        local hi = (c.mood and #ramp > 0) and p.ink or p.fg
         local space = sbar.add("space", "space." .. i, {
             space = i,
             padding_left = 3,
