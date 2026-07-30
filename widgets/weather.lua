@@ -33,9 +33,12 @@ return function(ctx)
     -- /usr/bin/jq, so a bare PATH is not the reason.)
     local point
     local function fetch()
-        sbar.exec("curl -s --max-time 8 " .. ctx.shell_quote(
-            "https://api.open-meteo.com/v1/forecast?" .. point .. "&current=temperature_2m,weather_code"),
-            function(out)
+        -- string.format from a single literal, never `..`: see the note on
+        -- ctx.shell_quote in core/init.lua. As a concatenation this url lost an
+        -- operand and curl was handed a query string with no scheme or host.
+        sbar.exec(string.format(
+            "curl -s --max-time 8 'https://api.open-meteo.com/v1/forecast?%s&current=temperature_2m,weather_code'",
+            point), function(out)
             local current = type(out) == "table" and out.current
             -- On failure keep the last reading: a stale temperature is more
             -- truthful than "--°" flapping on every network blip.
@@ -51,8 +54,9 @@ return function(ctx)
     -- -G --data-urlencode, not string concatenation: place names have spaces in
     -- them ("San Francisco") and a raw space makes the request URL invalid.
     local function geocode()
-        sbar.exec("curl -s --max-time 8 -G 'https://geocoding-api.open-meteo.com/v1/search?count=1'"
-            .. " --data-urlencode " .. ctx.shell_quote("name=" .. cfg.place), function(out)
+        sbar.exec(string.format(
+            "curl -s --max-time 8 -G 'https://geocoding-api.open-meteo.com/v1/search?count=1' --data-urlencode %s",
+            ctx.shell_quote(string.format("name=%s", cfg.place))), function(out)
             if type(out) ~= "table" then return end
             local hit = out.results and out.results[1]
             if not (hit and hit.latitude) then
@@ -60,7 +64,7 @@ return function(ctx)
                 -- so stop the 30s bootstrap instead of hammering it forever.
                 return weather:set({ update_freq = 900 })
             end
-            point = "latitude=" .. hit.latitude .. "&longitude=" .. hit.longitude
+            point = string.format("latitude=%s&longitude=%s", hit.latitude, hit.longitude)
             fetch()
         end)
     end

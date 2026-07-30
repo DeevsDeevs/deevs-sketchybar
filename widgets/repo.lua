@@ -97,7 +97,7 @@ return function(ctx)
     local misses = 0
     local seen_cwd, seen_at = nil, 0
     local ci_key, ci_at = "", 0
-    local paint, refresh, resolve, ci_fetch, ci_track
+    local paint, refresh, poll, ci_fetch, ci_track
 
     paint = function()
         if not root then
@@ -119,31 +119,42 @@ return function(ctx)
         })
     end
 
-    refresh = function()
-        -- Pinned but unresolved: the path may not be a repo yet (unmounted
-        -- volume, not cloned), so keep retrying instead of giving up on it.
-        if not root then
-            if pinned then resolve(pinned) end
-            return
-        end
-        -- Built inline, NOT from a string captured above. Hoisted into a local it
-        -- concatenated as empty here — the exec ran the bare argument with no
-        -- command and returned 2 — while `#` and `f:write` on the same value were
-        -- correct, and the same code was correct outside the bar. Measured, not
-        -- explained; volume.lua hoists its helper path and is fine, so this is
-        -- not a general rule about this codebase. Build it at the call site.
-        sbar.exec(ctx.shell_quote(ctx.helper("repo_state.sh"))
-            .. " " .. ctx.shell_quote(root), function(out)
-            local head, oid, count = first_line(out):match("^ok (%S+) (%S+) (%d+)$")
-            if not head then
-                -- One failed read is usually contention (an index.lock during a
-                -- rebase), not a lost repo; only a repeated one retires the chip.
+    -- One exec answers root, branch, commit and dirty count together, for one
+    -- directory. Two separate calls were not just wasteful: SbarLua recycles its
+    -- exec callback refs, so with several in flight a reply can be delivered to
+    -- another exec's callback — measured, a rev-parse for one repo handed back a
+    -- different repo's path. The helper echoes the directory it was asked about
+    -- and anything that does not match what we asked is dropped, so a crossed
+    -- reply is inert instead of wrong.
+    poll = function(dir)
+        if not dir then return end
+        sbar.exec(string.format("%s %s",
+            ctx.shell_quote(ctx.helper("repo_state.sh")),
+            ctx.shell_quote(dir)), function(out)
+            local verdict, asked, rest = first_line(out):match("^(%a+)\t([^\t]*)\t?(.*)$")
+            if asked ~= dir then return end -- not our reply
+
+            if verdict == "no" then
+                -- Not a repo. Hold the repo we already had and dim it, rather
+                -- than reflowing the bar on every cd to ~.
+                here = false
+                return paint()
+            end
+
+            local top, head, oid, count = rest:match("^([^\t]*)\t([^\t]*)\t([^\t]*)\t(%d+)$")
+            if not top then
+                -- One bad read is usually contention (an index.lock mid-rebase),
+                -- not a lost repo; only a repeated one retires the chip.
                 misses = misses + 1
                 if misses < 3 then return end
                 root, name, branch, sha, dirty = nil, nil, nil, nil, nil
                 return paint()
             end
-            misses = 0
+
+            here, misses = true, 0
+            if top ~= root then
+                root, name = top, top:match("([^/]+)/*$") or top
+            end
             branch = head ~= "(detached)" and head or nil
             sha = oid:match("^%x+$") and oid or nil -- "(initial)" before the first commit
             dirty = tonumber(count)
@@ -152,22 +163,9 @@ return function(ctx)
         end)
     end
 
-    resolve = function(dir)
-        sbar.exec("git -C " .. ctx.shell_quote(dir)
-            .. " rev-parse --show-toplevel 2>/dev/null", function(out)
-            -- Outside a repo git prints nothing and exits 128. The chip then
-            -- holds the repo it already had, so the bar does not reflow every
-            -- time you cd to ~; it only dims to say the shell is elsewhere.
-            local top = first_line(out)
-            here = top ~= ""
-            if here and top ~= root then
-                root, name = top, top:match("([^/]+)/*$") or top
-                branch, sha, dirty, misses = nil, nil, nil, 0
-            end
-            paint()
-            refresh()
-        end)
-    end
+    -- Routine re-asks about the directory last reported, so a change made by an
+    -- editor or a rebase in another tab still shows up without the shell moving.
+    refresh = function() poll(pinned or seen_cwd or root) end
 
     -- Detached HEAD has no branch to ask about, and an unfiltered run list would
     -- answer for whichever branch ran last rather than for this checkout.
@@ -178,9 +176,9 @@ return function(ctx)
         -- gh has no -C, so cd. </dev/null because gh prompts if it thinks it has
         -- a terminal, and a child blocked for its alarm(60) is worse than a
         -- missing colour.
-        sbar.exec("cd " .. ctx.shell_quote(root) .. " && gh run list --branch "
-            .. ctx.shell_quote(branch) .. " --limit 1 --json status,conclusion"
-            .. " </dev/null 2>/dev/null", function(out)
+        sbar.exec(string.format(
+            "cd %s && gh run list --branch %s --limit 1 --json status,conclusion </dev/null 2>/dev/null",
+            ctx.shell_quote(root), ctx.shell_quote(branch)), function(out)
             -- Array/object stdout arrives already parsed into a table. gh prints
             -- nothing at all when there is no GitHub remote, no run on this
             -- branch, or no credentials, and none may inherit the last colour.
@@ -229,18 +227,17 @@ return function(ctx)
             if cwd == "" then return end
             if cwd ~= seen_cwd then
                 seen_cwd, seen_at = cwd, os.time()
-                return resolve(cwd)
+                return poll(cwd)
             end
-            -- Same directory, prompt fired again (a commit, a build): only the
-            -- working tree can have changed, so skip the root lookup. precmd
+            -- Same directory, prompt fired again (a commit, a build). precmd
             -- fires on every bare Enter, hence the floor.
             if os.time() - seen_at < 1 then return end
             seen_at = os.time()
-            refresh()
+            poll(cwd)
         end)
     end
 
     -- Routine is up to update_freq away, so a pinned repo would otherwise sit
     -- on "—" after every reload.
-    if pinned then resolve(pinned) end
+    if pinned then poll(pinned) end
 end

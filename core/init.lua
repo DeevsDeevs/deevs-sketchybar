@@ -26,8 +26,15 @@ function ctx.detached(command)
     return "( for fd in $(jot 253 3); do eval \"exec ${fd}>&-\" 2>/dev/null || true; done; exec </dev/null >/dev/null 2>&1 " .. command .. " ) &"
 end
 
+-- string.format, never concatenation. Written as
+--   return "'" .. tostring(value):gsub("'", "'\\''") .. "'"
+-- this returned a bare '' for some inputs — the middle operand simply vanished —
+-- and every caller then built a command with an empty argument, which fails
+-- silently because sbar.exec only ever hands back stdout. Measured with a
+-- 60-character path while a 53-character one was fine, so it is not reproducible
+-- by inspection; the extra parens keep gsub's replacement count out of format.
 function ctx.shell_quote(value)
-    return "'" .. tostring(value):gsub("'", "'\\''") .. "'"
+    return string.format("'%s'", (tostring(value):gsub("'", "'\\''")))
 end
 
 -- Current coordinates as an Open-Meteo query fragment, or nil if Location
@@ -40,7 +47,7 @@ function ctx.locate(done)
         ctx.helper("location/bin/location.app/Contents/MacOS/location")), function(out)
         local lat, lon = tostring(out):match("(-?%d+%.?%d*)%s+(-?%d+%.?%d*)")
         if not lat then return done(nil) end
-        located = "latitude=" .. lat .. "&longitude=" .. lon
+        located = string.format("latitude=%s&longitude=%s", lat, lon)
         done(located)
     end)
 end
