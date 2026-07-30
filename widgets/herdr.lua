@@ -80,19 +80,51 @@ return function(ctx)
     -- Survives re-render so a group you opened stays open.
     local expanded = {}
 
-    local function project_of(a)
+    local function leaf_of(a)
         return (a.cwd or ""):match("[^/]+$") or "—"
     end
 
-    -- "π - tracing" under a "tracing" heading says nothing twice; only then fall back to
+    -- Two checkouts can share a leaf — tasks/dagster-setup/core-platform and
+    -- tasks/auth-redpanda/core-platform — and grouping on it alone files their agents
+    -- together. Grow the label leftward only until every project is distinct.
+    local function project_names(entries)
+        local segs, depth, out = {}, {}, {}
+        for _, e in ipairs(entries) do
+            local path = e.a.cwd or ""
+            if not segs[path] then
+                segs[path] = {}
+                for part in path:gmatch("[^/]+") do table.insert(segs[path], part) end
+                depth[path] = 1
+            end
+        end
+        for _ = 1, 5 do
+            local seen, clash = {}, false
+            for path, list in pairs(segs) do
+                out[path] = #list > 0
+                    and table.concat(list, "/", math.max(1, #list - depth[path] + 1))
+                    or "—"
+                seen[out[path]] = (seen[out[path]] or 0) + 1
+            end
+            for path, list in pairs(segs) do
+                if seen[out[path]] > 1 and depth[path] < #list then
+                    depth[path] = depth[path] + 1
+                    clash = true
+                end
+            end
+            if not clash then break end
+        end
+        return out
+    end
+
+    -- "π - tracing" beside a "tracing" heading says nothing twice; only then fall back to
     -- the pane, which is all that distinguishes sibling agents in one project.
     local function row_text(a)
         local title = a.terminal_title_stripped or a.terminal_title or ""
         local tail = title:match("^%S+%s+%-%s+(.+)$")
-        if title == "" or tail == project_of(a) then
+        if title == "" or tail == leaf_of(a) then
             return (a.pane_id or ""):match("[^:]+$") or "?"
         end
-        return clip(title, 40)
+        return clip(title, 38)
     end
 
     local function render_popup()
@@ -100,109 +132,141 @@ return function(ctx)
         local n = 0
         local multi = #hosts > 1
 
-        local function header(text, color)
+        local function section(text, count, color)
             n = n + 1
             return sbar.add("item", "herdr.row." .. n, {
                 position = "popup." .. chip.name,
                 icon = { drawing = false },
                 label = {
-                    string = text,
-                    color = color or ctx.with_alpha(p.fg, 0.45),
-                    font = { style = "SemiBold", size = 9.5 },
-                    padding_left = 10,
-                    padding_right = 12,
+                    string = string.format("%s  %d", text, count),
+                    color = color or ctx.with_alpha(p.fg, 0.4),
+                    font = { style = "Bold", size = 9.0 },
+                    padding_left = 12,
+                    padding_right = 14,
                 },
             })
         end
 
+        -- Status tints the row itself: a 7pt dot beside the text does not survive being
+        -- read at a glance, and the row background is free.
         local function row(a, host, suffix)
             n = n + 1
-            local dot = a.agent_status == "blocked" and p.bad
-                or a.agent_status == "working" and p.accent
-                or a.agent_status == "done" and p.good
-                or ctx.with_alpha(p.fg, 0.3)
+            local blocked = a.agent_status == "blocked"
+            local working = a.agent_status == "working"
+            local lead = blocked and "◆" or working and "▶" or a.focused and "▸" or "·"
+            local lead_color = blocked and p.bad or working and p.accent
+                or a.focused and p.fg or ctx.with_alpha(p.fg, 0.28)
             local focus = host.ssh
                 and over_ssh(host, string.format("herdr agent focus %s", ctx.shell_quote(a.pane_id)))
                 or string.format("herdr agent focus %s", ctx.shell_quote(a.pane_id))
-            sbar.add("item", "herdr.row." .. n, {
+            local props = {
                 position = "popup." .. chip.name,
                 icon = {
-                    -- herdr knows which pane you are looking at; mark it by shape, so the
-                    -- colour is still free to carry status.
-                    string = a.focused and "▸" or "●",
-                    color = dot,
-                    font = { size = 7.5 },
-                    padding_left = 16,
-                    padding_right = 6,
+                    string = lead,
+                    color = lead_color,
+                    font = { size = 9.0 },
+                    padding_left = 12,
+                    padding_right = 7,
                 },
                 label = {
                     string = string.format("%s %s%s", a.agent == "claude" and "✳" or "π",
                         row_text(a), suffix or ""),
-                    color = a.agent_status == "idle" and ctx.with_alpha(p.fg, 0.7) or p.fg,
+                    color = (blocked or working) and p.fg or ctx.with_alpha(p.fg, 0.72),
                     font = { size = 11.0 },
                     padding_left = 0,
                     padding_right = 14,
                 },
                 click_script = string.format("%s; sketchybar --set herdr popup.drawing=off", focus),
-            })
+            }
+            if blocked or working then
+                props.background = {
+                    color = ctx.with_alpha(blocked and p.bad or p.accent, blocked and 0.17 or 0.13),
+                    corner_radius = 6,
+                    height = 20,
+                }
+            end
+            sbar.add("item", "herdr.row." .. n, props)
         end
 
-        -- Blocked agents lead regardless of project: they are the only ones waiting on you.
+        local entries = {}
         for _, host in ipairs(hosts) do
             for _, a in ipairs(fleet[host.name] or {}) do
-                if a.agent_status == "blocked" then
-                    if n == 0 then header("needs you", p.bad) end
-                    row(a, host, string.format("  ·  %s", project_of(a)))
+                table.insert(entries, { a = a, host = host })
+            end
+        end
+        local names = project_names(entries)
+        local function label_of(e)
+            local name = names[e.a.cwd or ""] or leaf_of(e.a)
+            if multi then return string.format("%s · %s", name, e.host.name) end
+            return name
+        end
+
+        -- Anything waiting on you, then anything moving. Both are few, so both get a
+        -- full row with the project spelled out.
+        for _, status in ipairs({ "blocked", "working" }) do
+            local pick = {}
+            for _, e in ipairs(entries) do
+                if e.a.agent_status == status then table.insert(pick, e) end
+            end
+            if #pick > 0 then
+                section(status == "blocked" and "needs you" or "running", #pick,
+                    status == "blocked" and p.bad or ctx.with_alpha(p.accent, 0.85))
+                for _, e in ipairs(pick) do
+                    row(e.a, e.host, string.format("   %s", label_of(e)))
                 end
             end
         end
 
-        -- Then one group per project, the ones with something running first.
-        local groups, names = {}, {}
-        for _, host in ipairs(hosts) do
-            for _, a in ipairs(fleet[host.name] or {}) do
-                if a.agent_status ~= "blocked" then
-                    local key = multi and string.format("%s · %s", project_of(a), host.name)
-                        or project_of(a)
-                    if not groups[key] then
-                        groups[key] = { live = false }
-                        names[#names + 1] = key
-                    end
-                    table.insert(groups[key], { a = a, host = host })
-                    if a.agent_status == "working" then groups[key].live = true end
+        -- Everything else is standby: one line per project rather than fifteen agent rows,
+        -- since a popup cannot scroll. Click a project to reach the agents inside it.
+        local rest, order = {}, {}
+        for _, e in ipairs(entries) do
+            local st = e.a.agent_status
+            if st ~= "blocked" and st ~= "working" then
+                local key = label_of(e)
+                if not rest[key] then
+                    rest[key] = {}
+                    order[#order + 1] = key
                 end
+                table.insert(rest[key], e)
             end
         end
-        table.sort(names, function(x, y)
-            if groups[x].live ~= groups[y].live then return groups[x].live end
-            return x < y
-        end)
+        table.sort(order)
 
-        -- A whole fleet listed at once runs ~920px, taller than most screens, and sketchybar
-        -- popups have no scroll. Projects with something running open themselves; the rest
-        -- collapse to one line until clicked.
-        local total = 0
-        for _, key in ipairs(names) do total = total + #groups[key] end
-        local fits = total + #names <= 12
+        if #order > 0 then
+            local count = 0
+            for _, key in ipairs(order) do count = count + #rest[key] end
+            section("standby", count)
 
-        local rank = { working = 1, done = 2, idle = 3 }
-        for _, key in ipairs(names) do
-            local group = groups[key]
-            table.sort(group, function(x, y)
-                return (rank[x.a.agent_status] or 9) < (rank[y.a.agent_status] or 9)
-            end)
-            local open = expanded[key]
-            if open == nil then open = fits or group.live end
-            local item = header(string.format("%s  %s · %d", open and "▾" or "▸", key, #group),
-                group.live and ctx.with_alpha(p.fg, 0.6) or nil)
-            -- Deferred: re-rendering here would sbar.remove the item whose callback is
-            -- still running. The event lands after this returns.
-            item:subscribe("mouse.clicked", function()
-                expanded[key] = not open
-                sbar.trigger("herdr_render")
-            end)
-            if open then
-                for _, entry in ipairs(group) do row(entry.a, entry.host) end
+            for _, key in ipairs(order) do
+                local open = expanded[key] == true
+                n = n + 1
+                local item = sbar.add("item", "herdr.row." .. n, {
+                    position = "popup." .. chip.name,
+                    icon = {
+                        string = open and "▾" or "▸",
+                        color = ctx.with_alpha(p.fg, 0.3),
+                        font = { size = 8.0 },
+                        padding_left = 12,
+                        padding_right = 7,
+                    },
+                    label = {
+                        string = string.format("%s  %d", key, #rest[key]),
+                        color = ctx.with_alpha(p.fg, 0.55),
+                        font = { size = 10.5 },
+                        padding_left = 0,
+                        padding_right = 14,
+                    },
+                })
+                -- Deferred: re-rendering here would sbar.remove the item whose callback is
+                -- still running. The event lands after this returns.
+                item:subscribe("mouse.clicked", function()
+                    expanded[key] = not open
+                    sbar.trigger("herdr_render")
+                end)
+                if open then
+                    for _, e in ipairs(rest[key]) do row(e.a, e.host) end
+                end
             end
         end
 
