@@ -44,12 +44,21 @@ media-control stream 2>/dev/null | while IFS= read -r line; do
     jq -r '[(.playing // false), (.title // ""), (.artist // ""), (.bundleIdentifier // "")] | @tsv' <<<"$state"
   )"
 
-  sig="$playing	$title	$artist	$app"
+  track="$title	$artist	$app"
+  sig="$playing	$track"
+
+  # Remember which track the file on disk belongs to. Without this a track that
+  # carries no artwork of its own — a local file, most podcasts — still found the
+  # previous track's image sitting there and showed it as its own, and the widget
+  # then cached that as correct. TMPDIR survives reboots, so this also covers the
+  # first play after a restart.
+  [[ -n "$art" ]] && art_owner="$track"
+
   if [[ "$sig" != "${last_sig:-}" || -n "$art" ]]; then
     last_sig="$sig"
     sketchybar --trigger media_update \
       PLAYING="$playing" TITLE="$title" ARTIST="$artist" APP="$app" \
-      ART_PATH="$ART" \
+      ART_PATH="$([[ "${art_owner:-}" == "$track" ]] && printf '%s' "$ART")" \
       ART_NEW="$([[ -n "$art" ]] && printf 1 || printf 0)"
   fi
 done

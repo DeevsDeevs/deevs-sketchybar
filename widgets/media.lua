@@ -293,8 +293,20 @@ return function(ctx)
         -- new art — still never on every event, which is what stacked draw
         -- layers into the "fanned covers" artifact.
         cover:set({ drawing = true })
+
+        -- An empty ART_PATH means the helper has no artwork for THIS track, as
+        -- opposed to none yet: show a blank cover rather than inheriting the
+        -- previous song's.
+        if env.ART_PATH == nil or env.ART_PATH == "" then
+            if has_art then
+                cover:set({ background = { image = { drawing = false }, color = p.transparent } })
+                has_art = nil
+            end
+            return
+        end
+
         if env.ART_NEW ~= "1" and has_art then return end
-        local f = env.ART_PATH and io.open(env.ART_PATH, "r")
+        local f = io.open(env.ART_PATH, "r")
         if not f then return end
         f:close()
         has_art = true

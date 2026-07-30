@@ -8,6 +8,14 @@ return function(ctx)
     local hosts = conf.hosts or { { name = "local" } }
     local fleet = {} -- host -> agents list
 
+    -- Terminal titles are arbitrary text: truncate by codepoint, or a byte sub
+    -- cuts a multibyte character in half and renders a replacement glyph.
+    local function clip(value, limit)
+        local str = tostring(value or "")
+        local cut = utf8.offset(str, limit + 1)
+        return cut and (str:sub(1, cut - 1) .. "…") or str
+    end
+
     local chip = sbar.add("item", "herdr", {
         position = "right",
         icon = { string = "✳", color = ctx.with_alpha(p.fg, 0.5), font = { size = 12.0 } },
@@ -85,7 +93,7 @@ return function(ctx)
                     },
                     label = {
                         string = string.format("%s %s  ·  %s", a.agent == "claude" and "✳" or "π",
-                            title:sub(1, 42), host.name),
+                            clip(title, 42), host.name),
                         padding_right = 10,
                     },
                     click_script = focus .. "; sketchybar --set herdr popup.drawing=off",

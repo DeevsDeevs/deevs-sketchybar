@@ -64,7 +64,12 @@ return function(ctx)
     -- shell script (a lua subscription would route it back through lua).
     sbar.exec("sketchybar --add item menus.refresher left"
         .. " --set menus.refresher drawing=off updates=on"
-        .. " script=" .. ctx.shell_quote("MENU_SLOTS=" .. max_menus .. " " .. swap .. " refresh")
+        -- Quoted twice on purpose: the outer pass makes it one CLI argument, the
+        -- inner one survives sketchybar re-evaluating the string as a shell
+        -- command later. Without it a config path containing a space silently
+        -- breaks every refresh and the menu labels go stale.
+        .. " script=" .. ctx.shell_quote("MENU_SLOTS=" .. max_menus .. " "
+            .. ctx.shell_quote(swap) .. " refresh")
         .. " --subscribe menus.refresher front_app_switched")
 
     -- Always start in spaces mode after a reload.

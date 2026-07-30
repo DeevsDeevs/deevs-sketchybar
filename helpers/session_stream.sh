@@ -26,8 +26,12 @@ while :; do
 
   line="$("$QUERY" current)"
 
+  # Poll rate follows the state. Only a running block needs second-level
+  # freshness; idle needs to notice a new one starting, and once Session turns
+  # out to be absent it cannot appear without a relaunch, which restarts this.
   case "$line" in
     RUN*)
+      nap=2
       IFS=$'\t' read -r _ left total kind title <<<"$line"
       IFS=$'\t' read -r today_n today_min <<<"$("$QUERY" today)"
       sketchybar --trigger session_update \
@@ -36,9 +40,11 @@ while :; do
         >/dev/null 2>&1
       ;;
     NODB*)
+      nap=300
       sketchybar --trigger session_update STATE=absent >/dev/null 2>&1
       ;;
     IDLE)
+      nap=4
       IFS=$'\t' read -r today_n today_min <<<"$("$QUERY" today)"
       sketchybar --trigger session_update STATE=idle \
         TODAY_N="${today_n:-0}" TODAY_MIN="${today_min:-0}" >/dev/null 2>&1
@@ -46,8 +52,9 @@ while :; do
     *)
       # Only an explicit IDLE clears the chip. Anything else means the query
       # itself broke, and asserting "idle" there blanks a running session.
+      nap=10
       ;;
   esac
 
-  sleep 2
+  sleep "${nap:-2}"
 done

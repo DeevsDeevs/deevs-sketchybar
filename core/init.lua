@@ -53,7 +53,7 @@ local gaps = 0
 function ctx.gap(width)
     if ctx.config.chips == false then return end
     gaps = gaps + 1
-    sbar.add("item", "gap." .. gaps, {
+    local item = sbar.add("item", "gap." .. gaps, {
         position = "right",
         width = width or 10,
         padding_left = 0,
@@ -62,10 +62,15 @@ function ctx.gap(width)
         label = { drawing = false },
         background = { drawing = false },
     })
+    -- Joins the group so the islands structure includes it in the pod; left out,
+    -- the pod is built around the spacer rather than across it.
+    table.insert(ctx.groups.right, item.name)
 end
 
 function ctx.chip(name, members, opts)
-    if ctx.config.chips == false then return no_chip end
+    -- A memberless bracket is rejected by sketchybar, and every later :set on it
+    -- then addresses an item that does not exist.
+    if ctx.config.chips == false or not members or #members == 0 then return no_chip end
     local props = {
         background = {
             color = ctx.style.item_bg,
