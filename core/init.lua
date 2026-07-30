@@ -65,6 +65,18 @@ function ctx.gap(width)
     -- Joins the group so the islands structure includes it in the pod; left out,
     -- the pod is built around the spacer rather than across it.
     table.insert(ctx.groups.right, item.name)
+    return item.name
+end
+
+-- Drop a spacer again. Whether a widget draws at all is only known after it has
+-- run, and its spacer has to exist before it to land on the right side of it, so
+-- the loader speculates and hands the name back when nothing appeared.
+function ctx.ungap(name)
+    if not name then return end
+    for i = #ctx.groups.right, 1, -1 do
+        if ctx.groups.right[i] == name then table.remove(ctx.groups.right, i) break end
+    end
+    sbar.remove(name)
 end
 
 function ctx.chip(name, members, opts)

@@ -20,29 +20,39 @@ function M.load(ctx)
     -- right (added rightmost-first). Each cluster is separated by a spacer, but
     -- only once something has actually been drawn on both sides of it —
     -- unconditional gaps left dead whitespace where a disabled widget used to be.
+    -- `enabled` is not enough to go by: a widget whose dependency is missing
+    -- returns without adding anything, so ask the group whether it grew.
     local drawn = false
-    local function cluster(enabled, name)
-        if not enabled then return end
-        if drawn then ctx.gap() end
-        require("widgets." .. name)(ctx)
-        drawn = true
+    local function add(names)
+        local before = #ctx.groups.right
+        for _, name in ipairs(names) do
+            if on(c[name]) then require("widgets." .. name)(ctx) end
+        end
+        return #ctx.groups.right > before
     end
 
-    -- The small status chips share one chip, so they are one cluster: no spacer
-    -- between them.
-    local status = false
-    for _, w in ipairs({ "calendar", "battery", "volume", "mic", "vpn" }) do
-        if on(c[w]) then
-            require("widgets." .. w)(ctx)
-            status = true
+    local function cluster(names)
+        local spacer = drawn and ctx.gap() or nil
+        if add(names) then
+            drawn = true
+        else
+            -- Nothing landed after all; take the spacer back out rather than
+            -- leaving a hole where the widget would have been.
+            ctx.ungap(spacer)
         end
     end
-    drawn = status
 
-    cluster(on(c.session), "session")
-    cluster(on(c.herdr), "herdr")
-    cluster(on(c.system), "system")
-    cluster(on(c.media), "media")
+    -- The small status chips share one bracket, so they go in as one cluster with
+    -- no spacers between them.
+    drawn = add({ "calendar", "battery", "volume", "mic", "vpn", "lang", "weather" })
+
+    cluster({ "surf" })
+    cluster({ "session" })
+    cluster({ "herdr" })
+    cluster({ "repo" })
+    cluster({ "servers" })
+    cluster({ "system" })
+    cluster({ "media" })
 end
 
 return M

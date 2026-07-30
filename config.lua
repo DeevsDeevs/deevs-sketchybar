@@ -62,7 +62,33 @@ return {
     calendar = { enabled = true },
 
     -- small optional chips
-    vpn = { enabled = false },              -- green/red shield via scutil
-    mic = { enabled = false },              -- click-to-mute
-    -- coming: repo sense, next event, weather, input language
+    vpn  = { enabled = false },  -- green/red shield via scutil
+    mic  = { enabled = false },  -- click-to-mute
+    lang = { enabled = false },  -- input source: EN / RU / …
+
+    weather = {
+        enabled = true,
+        place = "Lisbon",        -- geocoded once at load; no API key, no account
+    },
+
+    surf = {
+        enabled = true,
+        lat = 38.6800,           -- the break itself, not the town: the marine
+        lon = -9.3370,           -- model has no data over land
+        up = 1.5,                -- metres at which the chip lights up
+    },
+
+    -- Hosts come from ~/.ssh/config, resolved through `ssh -G`. Nothing to list
+    -- here, which is the point: this file is public.
+    --   filter = "hetzner"          -- lua pattern, narrows the discovered set
+    --   hosts = { "alias", ... }    -- explicit list instead of discovery
+    servers = { enabled = true },
+
+    -- Follows whichever repo your shell is in, via the chpwd/precmd hook in
+    -- .zshrc. Set `path` to pin it to one repo and ignore the hook instead.
+    repo = {
+        enabled = true,          -- repo · branch · dirty count · CI dot
+        ci = true,               -- needs the gh CLI, authenticated
+    },
+    -- coming: next calendar event (wants icalBuddy or a Calendar.app bridge)
 }
