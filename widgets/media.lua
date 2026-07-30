@@ -18,60 +18,30 @@ return function(ctx)
 
     local TEXT_W = media.text_width or 150
 
+    -- `side = "left"` puts the cluster left of the notch. Items lay out away from
+    -- their own edge, so the left side needs the creation order reversed: text,
+    -- cover, eq — see the ordering note at each block below.
+    local SIDE = media.side == "left" and "left" or "right"
+    local GROUP = ctx.groups[SIDE]
+    local function place(item)
+        table.insert(GROUP, item.name)
+        return item
+    end
+
     local function clip(value, limit)
         local str = tostring(value or "")
         local cut = utf8.offset(str, limit + 1)
         return cut and (str:sub(1, cut - 1) .. "…") or str
     end
 
-    -- EQ bar heights are driven externally by helpers/sonar.sh.
     local cover, eq_bars
     local EQ_N = media.eq_bars or 12
     local EQ_H = media.eq_height or 16
-    if media.sonar and has_cava() then
-        eq_bars = {}
-        for i = 1, EQ_N do
-            local bar = sbar.add("item", "media.eq." .. i, {
-                position = "right",
-                drawing = false,
-                updates = true,
-                width = 3,
-                padding_left = 1,
-                padding_right = 1,
-                icon = { drawing = false },
-                label = { drawing = false },
-                background = {
-                    drawing = true,
-                    color = ctx.with_alpha(p.accent, 0.9),
-                    height = 2,
-                    corner_radius = 1,
-                },
-                y_offset = -(EQ_H // 2) + 1,
-            })
-            eq_bars[i] = bar
-            table.insert(ctx.groups.right, bar.name)
-        end
-    end
-
-    -- Right items lay out RIGHT-TO-LEFT in creation order: cover first so the hover expansion grows away from it.
-    if media.cover then
-        cover = sbar.add("item", "media.cover", {
-            position = "right",
-            width = 32,
-            background = { color = p.transparent },
-            label = { drawing = false },
-            icon = { drawing = false },
-            drawing = false,
-            updates = true,
-            popup = { align = "center", horizontal = true },
-        })
-        table.insert(ctx.groups.right, cover.name)
-    end
 
     -- The lines share one box only because both labels carry the SAME fixed width; item width=0 does not collapse.
     local function line(name, opts)
-        local item = sbar.add("item", name, {
-            position = "right",
+        return place(sbar.add("item", name, {
+            position = SIDE,
             drawing = false,
             updates = true,
             width = opts.overlay and 0 or nil,
@@ -87,20 +57,82 @@ return function(ctx)
                 padding_right = opts.pad,
                 y_offset = opts.y,
             },
-        })
-        table.insert(ctx.groups.right, item.name)
-        return item
+        }))
     end
 
     local function text_px(value, size)
         return (utf8.len(tostring(value or "")) or 0) * size * 0.60
     end
 
-    local artist = line("media.artist", {
-        overlay = true, size = 9, y = 6, pad = 10,
-        color = ctx.with_alpha(p.fg, 0.6),
-    })
-    local title = line("media.title", { size = 11, y = -5, pad = 10, color = p.fg })
+    -- EQ bar heights are driven externally by helpers/sonar.sh.
+    local function add_eq()
+        if not (media.sonar and has_cava()) then return end
+        eq_bars = {}
+        for i = 1, EQ_N do
+            eq_bars[i] = place(sbar.add("item", "media.eq." .. i, {
+                position = SIDE,
+                drawing = false,
+                updates = true,
+                width = 3,
+                padding_left = 1,
+                padding_right = 1,
+                icon = { drawing = false },
+                label = { drawing = false },
+                background = {
+                    drawing = true,
+                    color = ctx.with_alpha(p.accent, 0.9),
+                    height = 2,
+                    corner_radius = 1,
+                },
+                y_offset = -(EQ_H // 2) + 1,
+            }))
+        end
+    end
+
+    -- Cover before the text on the right, after it on the left: either way the hover
+    -- expansion grows away from the cover rather than dragging it out from under the pointer.
+    local function add_cover()
+        if not media.cover then return end
+        cover = place(sbar.add("item", "media.cover", {
+            position = SIDE,
+            width = 32,
+            background = { color = p.transparent },
+            label = { drawing = false },
+            icon = { drawing = false },
+            drawing = false,
+            updates = true,
+            popup = { align = "center", horizontal = true },
+        }))
+    end
+
+    local artist, title
+    local function add_text()
+        artist = line("media.artist", {
+            overlay = true, size = 9, y = 6, pad = 10,
+            color = ctx.with_alpha(p.fg, 0.6),
+        })
+        title = line("media.title", { size = 11, y = -5, pad = 10, color = p.fg })
+    end
+
+    if SIDE == "right" then
+        add_eq(); add_cover(); add_text()
+    else
+        add_text(); add_cover(); add_eq()
+    end
+
+    -- On the left the hover expansion pushes the cluster toward the notch, and the
+    -- room left of it shrinks with every space chip. Measure it instead of trusting
+    -- a fixed width; the marquee covers whatever does not fit.
+    local WANT_W = TEXT_W
+    local function fit()
+        if SIDE ~= "left" then return end
+        sbar.exec(string.format("%s %d",
+            ctx.shell_quote(ctx.helper("media_fit.sh")),
+            32 + EQ_N * 5), function(out)
+            local px = tonumber(tostring(out):match("%d+"))
+            if px then TEXT_W = math.min(WANT_W, px) end
+        end)
+    end
 
     -- scroll_texts does not move text; the marquee animates the clipped label's padding_left.
     local overflow = 0
@@ -199,9 +231,12 @@ return function(ctx)
 
     start_stream()
     start_sonar()
+    fit()
+    anchor:subscribe("space_change", fit)
     anchor:subscribe("system_woke", function()
         start_stream()
         start_sonar()
+        fit()
     end)
     anchor:subscribe("audio_route_changed", start_sonar)
 

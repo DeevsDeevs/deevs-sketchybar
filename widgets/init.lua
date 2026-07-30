@@ -14,6 +14,11 @@ function M.load(ctx)
     if on(c.spaces) then require("widgets.spaces")(ctx) end
     require("widgets.front_app")(ctx)
 
+    -- media with side = "left" belongs to this group, so it must not also be given a
+    -- right-hand spacer below.
+    local media_left = on(c.media) and type(c.media) == "table" and c.media.side == "left"
+    if media_left then require("widgets.media")(ctx) end
+
     -- Right-position items lay out RIGHT-TO-LEFT in creation order.
     local drawn = false
     local function add(names)
@@ -43,7 +48,7 @@ function M.load(ctx)
     cluster({ "repo" })
     cluster({ "servers" })
     cluster({ "system" })
-    cluster({ "media" })
+    if not media_left then cluster({ "media" }) end
 end
 
 return M

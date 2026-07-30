@@ -20,6 +20,7 @@ return {
 
     media = {
         enabled = true,
+        side = "left",           -- "left" puts it left of the notch; "right" for the usual spot
         cover = true,        -- album art, controls in its popup
         sonar = true,        -- spectrum EQ (needs cava; see audio.auto_route)
         text_width = 150,    -- px; long titles scroll inside it
