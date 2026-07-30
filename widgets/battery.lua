@@ -7,6 +7,10 @@ return function(ctx)
         label = { font = { family = ctx.settings.font.numbers }, color = ctx.with_alpha(p.fg, 0.8) },
         update_freq = 180,
         popup = { align = "center" },
+        -- Hides itself when pmset reports no percentage, and `when_shown` (the
+        -- structure's default) would then stop delivering routine, so a single
+        -- failed read would hide the chip permanently.
+        updates = true,
     })
     table.insert(ctx.groups.right, battery.name)
     ctx.cluster("status", battery.name)
