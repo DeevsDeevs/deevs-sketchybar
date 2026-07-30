@@ -2,11 +2,9 @@
 
 # Pushes Session state into the bar as session_update events.
 #
-# The widget used to pull this with sbar.exec on a timer, but those callbacks
-# stop arriving after a few minutes of polling and the chip freezes on whatever
-# it last saw — a finished block kept counting down, a started one never
-# appeared. Pushing from a single long-lived process is the same shape as
-# media_stream.sh and needs no callbacks at all.
+# Pushes rather than letting the widget poll: sbar.exec callbacks stop arriving
+# after a few minutes of sustained polling, and the chip then freezes on
+# whatever it last saw. One long-lived pusher needs no callbacks at all.
 #
 # Only a coarse resync is sent; widgets/session.lua counts the seconds down
 # itself between updates.

@@ -27,9 +27,8 @@ return function(ctx)
         if #indices == 0 then
             for i = 1, max do table.insert(indices, i) end
         end
-        -- max is documented as a cap, so honour it for the yabai answer too;
-        -- it used to apply only to the no-yabai fallback and silently did
-        -- nothing on a working setup.
+        -- max is documented as a cap, so honour it for the yabai answer too,
+        -- not just the fallback.
         while #indices > max do table.remove(indices) end
         return indices
     end

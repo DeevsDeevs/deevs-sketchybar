@@ -26,9 +26,7 @@ return function(ctx)
     -- expand leftwards far enough to run under the notch.
     local TEXT_W = media.text_width or 150
 
-    -- Icons have no max_chars, and the artist rides in the icon slot with width
-    -- 0, so nothing bounds it — clip it here. utf8.offset rather than a byte
-    -- sub, or an accented name gets cut mid-character.
+    -- Clip by codepoint: a byte sub cuts an accented name mid-character.
     local function clip(value, limit)
         local str = tostring(value or "")
         local cut = utf8.offset(str, limit + 1)
@@ -218,15 +216,13 @@ return function(ctx)
     local anchor = cover or title
     local has_art = nil
     sbar.add("event", "media_update")
-    -- Picking an output used to fire system_woke, which six widgets listen to:
-    -- it restarted the media stream (blanking the chip for its 5s startup wait)
-    -- and orphaned another adapter every time. Only the sonar cares, because
-    -- cava's source moves with the route.
+    -- Dedicated event rather than system_woke, which six widgets subscribe to:
+    -- rerouting only moves cava's source, so the media stream must not be
+    -- bounced (and its startup wait paid) on every device pick.
     sbar.add("event", "audio_route_changed")
 
-    -- media-control execs into a perl adapter, so the old "media-control
-    -- stream" pattern matched nothing and every reload/wake orphaned another
-    -- ~17MB subscriber onto launchd. Match what actually runs.
+    -- media-control execs into a perl adapter, so a "media-control stream"
+    -- pattern matches nothing and every reload leaks a ~17MB subscriber.
     local function start_stream()
         sbar.exec("pkill -f 'helpers/media_stream[.]sh' >/dev/null 2>&1;"
             .. " pkill -f 'mediaremote-adapte[r]' >/dev/null 2>&1; "
@@ -258,9 +254,6 @@ return function(ctx)
 
         backdrop:set({ drawing = drawing })
 
-        -- A line that fits is right-aligned so it sits against the cover; one
-        -- that does not is left-aligned and marqueed, because right-aligning it
-        -- would pin the tail and hide the start.
         local title_px = text_px(env.TITLE, 11)
         overflow = math.max(0, math.ceil(title_px - TEXT_W))
         slide_reset()

@@ -179,8 +179,8 @@ AXUIElementRef ax_get_extra_menu_item(char* alias) {
         AXValueGetValue(size_ref, kAXValueCGSizeType, &size);
         CFRelease(position_ref);
         CFRelease(size_ref);
-        // The offset is exactly 8 on macOS Sonoma...
-        // printf("%f %f\n", position.x, bounds.origin.x);
+        // AX position and window bounds differ by exactly 8 on Sonoma; allow
+        // 10 for slack.
         if (error == kAXErrorSuccess
             && fabs(position.x - bounds.origin.x) <= 10) {
           result = item;

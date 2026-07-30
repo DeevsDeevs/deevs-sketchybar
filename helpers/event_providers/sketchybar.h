@@ -83,7 +83,7 @@ static inline bool mach_send_message(mach_port_t port, char* message, uint32_t l
 }
 
 static inline uint32_t format_message(char* message, char* formatted_message) {
-  // This is not actually robust, switch to stack based messaging.
+  // Naive tokenizer: splits on unquoted spaces only, no nesting or escapes.
   char outer_quote = 0;
   uint32_t caret = 0;
   uint32_t message_length = strlen(message) + 1;

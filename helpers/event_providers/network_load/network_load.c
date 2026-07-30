@@ -10,7 +10,6 @@ int main (int argc, char** argv) {
   }
 
   alarm(0);
-  // Setup the event in sketchybar
   char event_message[512];
   snprintf(event_message, 512, "--add event '%s'", argv[2]);
   sketchybar(event_message);
@@ -19,10 +18,8 @@ int main (int argc, char** argv) {
   network_init(&network, argv[1]);
   char trigger_message[512];
   for (;;) {
-    // Acquire new info
     network_update(&network);
 
-    // Prepare the event message
     snprintf(trigger_message,
              512,
              "--trigger '%s' upload='%03d%s' download='%03d%s'",
@@ -32,10 +29,8 @@ int main (int argc, char** argv) {
              network.down,
              unit_str[network.down_unit]);
 
-    // Trigger the event
     sketchybar(trigger_message);
 
-    // Wait
     usleep(update_freq * 1000000);
   }
   return 0;

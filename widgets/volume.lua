@@ -86,9 +86,7 @@ return function(ctx)
             .. " --remove '/volume.device\\..*/' >/dev/null 2>&1")
     end
 
-    -- The helper toggles by querying the live popup state rather than tracking
-    -- it here: clicking a device row closes the popup through the CLI, which a
-    -- lua-side flag would never see.
+    -- The helper owns the toggle; see volume_popup.sh for why it queries state.
     volume:subscribe("mouse.clicked", function(env)
         if env.BUTTON == "right" then
             sbar.exec("open /System/Library/PreferencePanes/Sound.prefpane")

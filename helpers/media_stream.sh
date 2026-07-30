@@ -1,10 +1,8 @@
 #!/usr/bin/env bash
 
 # Streams now-playing changes into the custom sketchybar event "media_update".
-# Replaces the old 2s `media-control get` polling through sbar.exec, which
-# pushed ~300KB of base64 artwork through the lua<->sketchybar Mach bridge on
-# every tick and was implicated in deadlocks. Artwork is decoded here and
-# passed to lua as a file path only.
+# Artwork is decoded here and handed to lua as a file path only: pushing a few
+# hundred KB of base64 through the lua<->sketchybar Mach bridge deadlocks it.
 
 set -u
 export PATH="/usr/bin:/bin:/opt/homebrew/bin:$PATH"

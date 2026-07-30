@@ -109,10 +109,8 @@ return function(ctx)
         end
     end
 
-    -- Redraw on every reply rather than when a round completes: the old counter
-    -- only rendered on reaching zero, so one dropped callback or one hung SSH
-    -- host left it stuck above zero and the chip froze on a stale count — or
-    -- stayed invisible for good if it happened to be hidden at the time.
+    -- Redraw on every reply, never on round completion: a dropped callback or a
+    -- hung SSH host must not be able to freeze the chip.
     local function poll()
         for _, host in ipairs(hosts) do
             sbar.exec(host_cmd(host), function(result)
