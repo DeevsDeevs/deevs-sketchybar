@@ -117,22 +117,30 @@ return function(ctx)
         title = line("media.title", { size = 11, y = -5, pad = 10, color = p.fg })
     end
 
-    -- Same order for both sides, and it mirrors for free: items lay out away from
-    -- their own edge, so eq/cover/text reads text-cover-eq on the right and
-    -- eq-cover-text on the left. What matters is that the text is created LAST, so
-    -- the hover expansion grows into empty space. Created first, it shoves the cover
-    -- out from under the pointer, which exits, collapses, re-enters and oscillates.
-    add_eq(); add_cover(); add_text()
+    -- Items lay out away from their own edge, so creation order reads outward from
+    -- the bar's edge toward the notch. The cover goes FIRST either way: it is the
+    -- hover target, and anything created before the growing text never moves —
+    -- created after it, the cover is shoved out from under the pointer, which exits,
+    -- collapses, slides back under and oscillates.
+    if SIDE == "right" then
+        add_eq(); add_cover(); add_text()
+    else
+        -- eq last so it sits against the notch. It shifts by the text width on hover;
+        -- the cover, being first, does not.
+        add_cover(); add_text(); add_eq()
+    end
 
     -- On the left the hover expansion pushes the cluster toward the notch, and the
     -- room left of it shrinks with every space chip. Measure it instead of trusting
     -- a fixed width; the marquee covers whatever does not fit.
     local WANT_W = TEXT_W
+    local applied = 0            -- text width currently set, so fit() can subtract it
+    local last_item = (eq_bars and eq_bars[EQ_N] or cover or title).name
     local function fit()
         if SIDE ~= "left" then return end
-        sbar.exec(string.format("%s %d",
+        sbar.exec(string.format("%s %s %d",
             ctx.shell_quote(ctx.helper("media_fit.sh")),
-            32 + EQ_N * 5), function(out)
+            ctx.shell_quote(last_item), applied), function(out)
             local px = tonumber(tostring(out):match("%d+"))
             if px then TEXT_W = math.min(WANT_W, px) end
         end)
@@ -182,9 +190,10 @@ return function(ctx)
             else
                 slide_step()
             end
+            applied = detail and TEXT_W or 0
             sbar.animate("tanh", 28, function()
-                artist:set({ label = { width = detail and TEXT_W or 0 } })
-                title:set({ label = { width = detail and TEXT_W or 0 } })
+                artist:set({ label = { width = applied } })
+                title:set({ label = { width = applied } })
             end)
         end
 
@@ -202,6 +211,8 @@ return function(ctx)
             cover:set({ popup = { drawing = false } })
         end)
     else
+        -- No cover means no hover target, so the text is permanently expanded.
+        applied = TEXT_W
         artist:set({ label = { width = TEXT_W } })
         title:set({ label = { width = TEXT_W } })
     end
