@@ -66,7 +66,7 @@ return {
     weather = { enabled = true },
 
     surf = {
-        enabled = true,
+        enabled = false,
         up = 1.5,                -- metres at which the chip lights up
     },
 
@@ -76,7 +76,7 @@ return {
     -- Follows the shell's chpwd/precmd hook — nothing outside the shell can
     -- tell which pane has focus. Set `path` to pin one repo.
     repo = {
-        enabled = true,          -- repo · branch · dirty count · CI dot
+        enabled = false,         -- repo · branch · dirty count · CI dot
         ci = true,               -- needs the gh CLI, authenticated
     },
 }
