@@ -13,6 +13,14 @@ return function(ctx)
     end
     local hosts = resolve()
 
+    -- herdr drives 22 agent kinds; only these two have a mark worth showing, and the rest
+    -- get a neutral robot rather than being mislabelled as pi.
+    local GLYPH = { pi = "π", claude = "✳" }
+    local FALLBACK = "\u{f06a9}"
+    local function glyph_of(agent)
+        return GLYPH[agent] or FALLBACK
+    end
+
     local function clip(value, limit)
         local str = tostring(value or "")
         local cut = utf8.offset(str, limit + 1)
@@ -61,13 +69,25 @@ return function(ctx)
         return "herdr agent list 2>/dev/null"
     end
 
+    -- The chip wears the mark of whichever agent it is reporting on: whatever is blocked,
+    -- else whatever is running, else the one that moved last. state_change_seq is herdr's
+    -- own counter, so ties resolve to the most active agent even when nothing is running.
+    local TIER = { blocked = 1, working = 2 }
+    local function outranks(a, b)
+        local ra, rb = TIER[a.agent_status] or 3, TIER[b.agent_status] or 3
+        if ra ~= rb then return ra < rb end
+        return (tonumber(a.state_change_seq) or 0) > (tonumber(b.state_change_seq) or 0)
+    end
+
     local function render_chip()
         local working, blocked, total = 0, 0, 0
+        local lead
         for _, agents in pairs(fleet) do
             for _, a in ipairs(agents) do
                 total = total + 1
                 if a.agent_status == "working" then working = working + 1 end
                 if a.agent_status == "blocked" then blocked = blocked + 1 end
+                if not lead or outranks(a, lead) then lead = a end
             end
         end
         if total == 0 then
@@ -88,7 +108,7 @@ return function(ctx)
         backdrop:set({ drawing = true })
         chip:set({
             drawing = true,
-            icon = { color = color },
+            icon = { string = glyph_of(lead and lead.agent), color = color },
             label = { string = tostring(count), color = color },
         })
     end
@@ -185,7 +205,7 @@ return function(ctx)
                     padding_right = 7,
                 },
                 label = {
-                    string = string.format("%s %s%s", a.agent == "claude" and "✳" or "π",
+                    string = string.format("%s %s%s", glyph_of(a.agent),
                         row_text(a), suffix or ""),
                     color = (blocked or working) and p.fg or ctx.with_alpha(p.fg, 0.72),
                     font = { size = 11.0 },
