@@ -63,9 +63,14 @@ return function(ctx)
     -- Optional: only needed if the media keys do nothing while routed. The
     -- tap consumes the three volume keys and applies them to the real device
     -- beneath the aggregate; everything else passes through.
+    -- Reap unconditionally, and match by process name. Inside the `if` it never
+    -- ran while the option was off, so a tap started earlier survived for good;
+    -- and a path pattern misses one launched from its own directory, where argv
+    -- is just "./bin/volume_keys". A stray tap is not cosmetic — it sits in the
+    -- keyboard event path.
+    sbar.exec("pkill -x volume_keys >/dev/null 2>&1")
     if (ctx.config.audio or {}).volume_keys then
-        sbar.exec("pkill -f 'helpers/volume_keys/bin/volume_key[s]' >/dev/null 2>&1; "
-            .. ctx.detached(ctx.shell_quote(ctx.helper("volume_keys/bin/volume_keys"))))
+        sbar.exec(ctx.detached(ctx.shell_quote(ctx.helper("volume_keys/bin/volume_keys"))))
     end
 
     -- Hide and drop the rows in one message: hiding over the bridge and then

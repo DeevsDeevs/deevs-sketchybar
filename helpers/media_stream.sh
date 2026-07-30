@@ -18,28 +18,37 @@ readonly ART="${ART_DIR%/}/sketchybar_album_art.jpg"
 sleep 5
 
 media-control stream 2>/dev/null | while IFS= read -r line; do
+  # Without this the bar's death leaves this loop and its media-control
+  # subscriber orphaned on launchd, holding a live MediaRemote subscription.
+  pgrep -x sketchybar >/dev/null 2>&1 || exit 0
+
   payload="$(jq -c 'select(.type == "data") | .payload // {}' <<<"$line" 2>/dev/null)" || continue
   [[ -z "$payload" ]] && continue
-
-  if [[ "$(jq -r '.diff // false' <<<"$line")" == "true" ]]; then
-    state="$(jq -c --argjson patch "$payload" '. * $patch' <<<"${state:-{\}}")"
-  else
-    state="$payload"
-  fi
 
   art="$(jq -r '.artworkData // empty' <<<"$payload")"
   if [[ -n "$art" ]]; then
     printf '%s' "$art" | base64 -d >"$ART.tmp" 2>/dev/null && sips -Z 128 "$ART.tmp" >/dev/null 2>&1 && mv -f "$ART.tmp" "$ART"
   fi
 
-  sig="$(jq -r '[.playing, .title, .artist, .bundleIdentifier] | @tsv' <<<"$state")"
+  # Strip artworkData before merging. Carried in $state it makes every read
+  # below re-parse a few hundred KB of base64 per stream line — the very payload
+  # cost this helper exists to keep off the bridge.
+  if [[ "$(jq -r '.diff // false' <<<"$line")" == "true" ]]; then
+    state="$(jq -c --argjson patch "$payload" '(. * $patch) | del(.artworkData)' <<<"${state:-{\}}")"
+  else
+    state="$(jq -c 'del(.artworkData)' <<<"$payload")"
+  fi
+
+  # One jq pass for the whole record rather than six herestrings.
+  IFS=$'\t' read -r playing title artist app <<<"$(
+    jq -r '[(.playing // false), (.title // ""), (.artist // ""), (.bundleIdentifier // "")] | @tsv' <<<"$state"
+  )"
+
+  sig="$playing	$title	$artist	$app"
   if [[ "$sig" != "${last_sig:-}" || -n "$art" ]]; then
     last_sig="$sig"
     sketchybar --trigger media_update \
-      PLAYING="$(jq -r '.playing // false' <<<"$state")" \
-      TITLE="$(jq -r '.title // ""' <<<"$state")" \
-      ARTIST="$(jq -r '.artist // ""' <<<"$state")" \
-      APP="$(jq -r '.bundleIdentifier // ""' <<<"$state")" \
+      PLAYING="$playing" TITLE="$title" ARTIST="$artist" APP="$app" \
       ART_PATH="$ART" \
       ART_NEW="$([[ -n "$art" ]] && printf 1 || printf 0)"
   fi

@@ -13,6 +13,13 @@ export PATH="/usr/bin:/bin:/opt/homebrew/bin:$HOME/.local/share/devbox/global/de
 
 command -v cava >/dev/null 2>&1 || exit 0
 
+# Single instance, enforced here rather than by the caller's pkill. system_woke
+# and audio_route_changed routinely fire together (waking often changes the
+# default output), each in its own forked shell, so the two pkill/spawn pairs can
+# interleave and leave two cava trees fighting over the same bars.
+LOCK="${TMPDIR:-/tmp}/sketchybar-sonar.lock"
+mkdir "$LOCK" 2>/dev/null || exit 0
+
 BARS="${SONAR_BARS:-12}"
 MAX_H="${SONAR_HEIGHT:-16}"   # px at full scale
 
@@ -22,7 +29,7 @@ if system_profiler SPAudioDataType 2>/dev/null | grep -q "BlackHole 2ch"; then
 fi
 
 cfg="$(mktemp "${TMPDIR:-/tmp}/sonar-cava.XXXXXX")"
-trap 'rm -f "$cfg"' EXIT HUP INT TERM
+trap 'rm -f "$cfg"; rmdir "$LOCK" 2>/dev/null' EXIT HUP INT TERM
 cat >"$cfg" <<EOF
 [general]
 bars = ${BARS}
@@ -39,18 +46,38 @@ EOF
 
 # One batched --set per frame: heights plus a y_offset so bars grow upward
 # from a common baseline (sketchybar backgrounds are vertically centered).
+#
+# cava emits frames whether or not anything is playing — its sleep_timer is
+# disabled by default — so without the floor check below this forked a
+# sketchybar process 15 times a second forever, writing heights into items that
+# are not even drawn. Silence is every band at the floor, which is also what a
+# non-whitelisted app playing looks like from here. One flat frame is still sent
+# so the bars settle, then nothing until sound returns.
+prev_flat=0
+
 cava -p "$cfg" 2>/dev/null | while IFS= read -r line; do
   [ -z "$line" ] && continue
   args=()
   i=1
+  flat=1
   IFS=';' read -ra vals <<<"$line"
   for v in "${vals[@]}"; do
     [ "$i" -gt "$BARS" ] && break
     case "$v" in (*[!0-9]*|"") v=0 ;; esac
     h=$((v < 2 ? 2 : v))
+    [ "$h" -gt 2 ] && flat=0
     args+=(--set "media.eq.$i" background.height="$h" y_offset=$(( (h - MAX_H) / 2 )))
     i=$((i + 1))
   done
   [ ${#args[@]} -eq 0 ] && continue
+
+  if [ "$flat" = 1 ]; then
+    [ "$prev_flat" = 1 ] && continue
+    prev_flat=1
+  else
+    prev_flat=0
+  fi
+
+  # A failing --set means the bar is gone; nothing left to draw into.
   sketchybar "${args[@]}" >/dev/null 2>&1 || exit 0
 done

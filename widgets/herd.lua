@@ -19,10 +19,14 @@ return function(ctx)
     table.insert(ctx.groups.right, chip.name)
     local backdrop = ctx.chip("herd.chip", { chip.name })
 
+    -- ConnectTimeout bounds only the handshake, so a host that connects and then
+    -- stalls in `herdr agent list` would hang forever; ServerAlive gives the
+    -- established session its own deadline.
     local function host_cmd(host)
         if host.ssh then
-            return "ssh -o BatchMode=yes -o ConnectTimeout=2 " .. ctx.shell_quote(host.ssh)
-                .. " herdr agent list 2>/dev/null"
+            return "ssh -o BatchMode=yes -o ConnectTimeout=2"
+                .. " -o ServerAliveInterval=2 -o ServerAliveCountMax=2 "
+                .. ctx.shell_quote(host.ssh) .. " herdr agent list 2>/dev/null"
         end
         return "herdr agent list 2>/dev/null"
     end

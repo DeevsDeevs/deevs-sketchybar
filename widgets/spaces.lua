@@ -4,7 +4,12 @@ return function(ctx)
     local p, c, style = ctx.palette, ctx.config, ctx.style
     local spaces = {}
 
-    local max = (type(c.spaces) == "table" and c.spaces.max) or 10
+    -- `spaces = true` is documented shorthand, so every read has to go through
+    -- this: indexing a boolean throws out of widgets.init, and nothing catches
+    -- it, so end_config() never runs and the whole bar comes up dead.
+    local conf = type(c.spaces) == "table" and c.spaces or {}
+    local max = conf.max or 10
+    local show_icons = conf.icons ~= false
 
     local function active_space_indices()
         local handle = io.popen("yabai -m query --spaces 2>/dev/null")
@@ -43,10 +48,10 @@ return function(ctx)
                 color = ctx.with_alpha(p.fg, 0.55),
                 highlight_color = p.ink,
                 padding_left = 10,
-                padding_right = c.spaces.icons and 4 or 10,
+                padding_right = show_icons and 4 or 10,
             },
             label = {
-                drawing = c.spaces.icons,
+                drawing = show_icons,
                 font = ctx.settings.font.app_icons,
                 color = ctx.with_alpha(p.fg, 0.5),
                 highlight_color = p.ink,

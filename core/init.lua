@@ -77,6 +77,12 @@ function ctx.chip(name, members, opts)
     return sbar.add("bracket", name, members, props)
 end
 
+-- Normalise the optional blocks once, here, rather than guarding every read:
+-- the structures run before any widget exists, so an omitted `bar` block took
+-- the whole bar down with it instead of just losing a feature.
+config.bar = type(config.bar) == "table" and config.bar or {}
+config.bar.height = config.bar.height or 40
+
 local structure = require("structures." .. config.structure)
 ctx.style = structure.style(ctx)
 

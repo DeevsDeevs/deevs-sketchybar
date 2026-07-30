@@ -152,6 +152,9 @@ return function(ctx)
     -- disappears when Session itself isn't installed.
     local function show(state)
         local present = state ~= "absent"
+        -- Undrawn items never deliver mouse.exited, so hover would latch on and
+        -- the next block would render mid-marquee with no pointer near it.
+        if state ~= "running" then hover(false) end
         icon:set({ drawing = present })
         bracket:set({ drawing = present })
         time:set({ drawing = state == "running" })
