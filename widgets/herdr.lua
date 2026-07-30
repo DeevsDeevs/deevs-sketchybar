@@ -264,6 +264,11 @@ return function(ctx)
                     expanded[key] = not open
                     sbar.trigger("herdr_render")
                 end)
+                -- These are the only popup items that take mouse events instead of a
+                -- click_script, so they capture the global exit the chip used to get.
+                item:subscribe("mouse.exited.global", function()
+                    chip:set({ popup = { drawing = false } })
+                end)
                 if open then
                     for _, e in ipairs(rest[key]) do row(e.a, e.host) end
                 end
