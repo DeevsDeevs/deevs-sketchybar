@@ -1,8 +1,17 @@
 return function(ctx)
     local p = ctx.palette
     local conf = type(ctx.config.herdr) == "table" and ctx.config.herdr or {}
-    local hosts = conf.hosts or { { name = "local" } }
+    local fixed, follows = ctx.host_of(conf)
+    local target = fixed or (follows and ((ctx.config.servers or {}).default or "local")) or nil
     local fleet = {}
+
+    -- A target collapses the fleet to one host; untargeted, the configured list stands.
+    local function resolve()
+        if not target then return conf.hosts or { { name = "local" } } end
+        if target == "local" then return { { name = "local" } } end
+        return { { name = target, ssh = target } }
+    end
+    local hosts = resolve()
 
     local function clip(value, limit)
         local str = tostring(value or "")
@@ -123,5 +132,16 @@ return function(ctx)
     chip:subscribe("mouse.exited.global", function()
         chip:set({ popup = { drawing = false } })
     end)
+
+    if follows then
+        sbar.add("event", "host_change")
+        chip:subscribe("host_change", function(env)
+            if not env.HOST or env.HOST == "" or env.HOST == target then return end
+            target = env.HOST
+            hosts = resolve()
+            fleet = {}   -- the old host's agents would keep counting into the chip
+            poll()
+        end)
+    end
     poll()
 end

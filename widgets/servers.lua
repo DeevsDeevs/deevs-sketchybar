@@ -54,24 +54,69 @@ return function(ctx)
     end
     if #hosts == 0 then return end
 
+    -- Selector mode: the chip names one target instead of reporting every host at once.
+    local select = cfg.select == true
+    if select then
+        table.insert(hosts, 1, { alias = "local", local_host = true })
+    end
+
     -- Right-position items lay out right-to-left in creation order: dots reversed, icon last to sit leftmost.
     local dots, rows = {}, {}
-    for i = #hosts, 1, -1 do
-        dots[i] = sbar.add("item", "widgets.servers.dot." .. i, {
-            position = "right",
-            icon = { string = "\u{f0765}", font = { size = 9.0 }, color = idle },
-            label = { drawing = false },
-            padding_left = 1,
-            padding_right = 1,
-        })
-        table.insert(ctx.groups.right, dots[i].name)
-        ctx.cluster("servers", dots[i].name)
+    if not select then
+        for i = #hosts, 1, -1 do
+            dots[i] = sbar.add("item", "widgets.servers.dot." .. i, {
+                position = "right",
+                icon = { string = "\u{f0765}", font = { size = 9.0 }, color = idle },
+                label = { drawing = false },
+                padding_left = 1,
+                padding_right = 1,
+            })
+            table.insert(ctx.groups.right, dots[i].name)
+            ctx.cluster("servers", dots[i].name)
+        end
     end
+
+    -- Aliases share tails ("deevs.hetzner.berezka" vs "deevs.aws.berezka"), so take the
+    -- last segment and grow leftward only as far as it takes to be unique.
+    local short = {}
+    do
+        local parts, depth = {}, {}
+        for _, h in ipairs(hosts) do
+            parts[h.alias] = {}
+            for seg in h.alias:gmatch("[^.]+") do
+                table.insert(parts[h.alias], seg)
+            end
+            depth[h.alias] = 1
+        end
+        for _ = 1, 4 do
+            local seen, clash = {}, false
+            for _, h in ipairs(hosts) do
+                local list = parts[h.alias]
+                short[h.alias] = table.concat(list, ".", math.max(1, #list - depth[h.alias] + 1))
+                seen[short[h.alias]] = (seen[short[h.alias]] or 0) + 1
+            end
+            for _, h in ipairs(hosts) do
+                if seen[short[h.alias]] > 1 and depth[h.alias] < #parts[h.alias] then
+                    depth[h.alias] = depth[h.alias] + 1
+                    clash = true
+                end
+            end
+            if not clash then break end
+        end
+    end
+
+    local target = select and (cfg.default or "local") or nil
 
     local servers = sbar.add("item", "widgets.servers", {
         position = "right",
         icon = { string = "\u{f048d}", font = { size = 12.0 }, color = ctx.with_alpha(p.fg, 0.7) },
-        label = { drawing = false },
+        label = {
+            drawing = select,
+            string = select and short[target] or target or "",
+            font = { family = ctx.settings.font.text, size = 11.5 },
+            color = ctx.with_alpha(p.fg, 0.85),
+            padding_left = 4,
+        },
         update_freq = 60,
         popup = { align = "center" },
     })
@@ -87,7 +132,13 @@ return function(ctx)
         rows[i] = sbar.add("item", "widgets.servers.row." .. i, {
             position = "popup." .. servers.name,
             icon = { string = h.alias, width = name_width, align = "left" },
-            label = { string = "···", width = 50, align = "right", color = idle },
+            label = {
+                string = h.local_host and "here" or "···",
+                width = 50, align = "right", color = idle,
+            },
+            click_script = select and ("sketchybar --trigger host_change HOST="
+                .. ctx.shell_quote(h.alias)
+                .. " --set widgets.servers popup.drawing=off") or nil,
         })
     end
 
@@ -95,13 +146,33 @@ return function(ctx)
     local probes = {}
     for i, h in ipairs(hosts) do
         -- Only nc -G bounds the connect: -w 3 against a black-holed address takes 75s.
-        probes[i] = "( nc -z -G 3 " .. ctx.shell_quote(h.addr) .. " " .. h.port
-            .. " >/dev/null 2>&1 && echo '" .. i .. " 1' || echo '" .. i .. " 0' ) &"
+        if not h.local_host then
+            probes[#probes + 1] = "( nc -z -G 3 " .. ctx.shell_quote(h.addr) .. " " .. h.port
+                .. " >/dev/null 2>&1 && echo '" .. i .. " 1' || echo '" .. i .. " 0' ) &"
+        end
     end
     local probe = table.concat(probes, " ") .. " wait"
 
+    local reachable = {}
+
+    -- The chip is the only dot in select mode, so it carries the target's reachability.
+    local function paint_chip()
+        if not select then return end
+        local up = reachable[target]
+        servers:set({
+            icon = { color = up == false and p.bad
+                or up == true and p.good
+                or ctx.with_alpha(p.fg, 0.7) },
+            label = { string = short[target] or target },
+        })
+        for i, h in ipairs(hosts) do
+            rows[i]:set({ icon = { color = h.alias == target and p.accent or p.fg } })
+        end
+    end
+
     local function paint(i, up)
-        dots[i]:set({ icon = { color = up and p.good or p.bad } })
+        reachable[hosts[i].alias] = up
+        if dots[i] then dots[i]:set({ icon = { color = up and p.good or p.bad } }) end
         rows[i]:set({ label = { string = up and "up" or "down",
             color = up and p.good or p.bad } })
     end
@@ -117,12 +188,14 @@ return function(ctx)
                 paint(i, state == "1")
             end
         end
-        for i = 1, #hosts do
-            if not seen[i] then
-                dots[i]:set({ icon = { color = idle } })
+        for i, h in ipairs(hosts) do
+            if not seen[i] and not h.local_host then
+                reachable[h.alias] = nil
+                if dots[i] then dots[i]:set({ icon = { color = idle } }) end
                 rows[i]:set({ label = { string = "···", color = idle } })
             end
         end
+        paint_chip()
     end
 
     local function refresh() sbar.exec(probe, apply) end
@@ -137,4 +210,15 @@ return function(ctx)
     servers:subscribe("mouse.exited.global", function()
         servers:set({ popup = { drawing = false } })
     end)
+
+    -- Last, after the mouse subscriptions: subscribing an item to mouse events *after* a
+    -- custom event silently drops the custom one, and the handler simply never fires.
+    if select then
+        sbar.add("event", "host_change")
+        servers:subscribe("host_change", function(env)
+            if env.HOST and env.HOST ~= "" then target = env.HOST end
+            paint_chip()
+        end)
+        paint_chip()
+    end
 end

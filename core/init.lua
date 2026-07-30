@@ -43,6 +43,14 @@ function ctx.locate(done)
     end)
 end
 
+-- Returns the fixed alias (nil = local) and whether the widget tracks the picker.
+function ctx.host_of(conf)
+    local host = type(conf) == "table" and conf.host or "local"
+    if host == "selected" then return nil, true end
+    if host == "local" or type(host) ~= "string" then return nil, false end
+    return host, false
+end
+
 local no_chip = { set = function() end }
 
 function ctx.cluster(name, item)

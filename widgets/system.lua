@@ -1,5 +1,9 @@
 return function(ctx)
     local p = ctx.palette
+    local conf = type(ctx.config.system) == "table" and ctx.config.system or {}
+    local fixed, follows = ctx.host_of(conf)
+    local target = fixed or (follows and ((ctx.config.servers or {}).default or "local")) or nil
+    if target == "local" then target = nil end
 
     local net_up = sbar.add("item", "system.net.up", {
         position = "right",
@@ -69,13 +73,17 @@ return function(ctx)
     local cpu_bin = ctx.helper("event_providers/cpu_load/bin/cpu_load")
     sbar.exec("killall cpu_load >/dev/null 2>&1; "
         .. ctx.detached(ctx.shell_quote(cpu_bin) .. " cpu_update 2.0"))
-    cpu:subscribe("cpu_update", function(env)
-        local load = tonumber(env.total_load) or 0
-        cpu:push({ load / 100.0 })
+    local function show_cpu(load, text)
         local color = p.accent
         if load > 80 then color = p.bad
         elseif load > 55 then color = p.warn end
-        cpu:set({ graph = { color = color }, label = { string = env.total_load .. "%", color = color } })
+        cpu:push({ load / 100.0 })
+        cpu:set({ graph = { color = color }, label = { string = (text or load) .. "%", color = color } })
+    end
+
+    cpu:subscribe("cpu_update", function(env)
+        if target then return end
+        show_cpu(tonumber(env.total_load) or 0, env.total_load)
     end)
 
     -- interface detected via io.popen, not sbar.exec: nested exec callbacks during config load get dropped
@@ -95,17 +103,65 @@ return function(ctx)
     end
 
     net_up:subscribe("network_update", function(env)
+        if target then return end
         net_up:set({ label = "↑ " .. rate(env.upload) })
         net_down:set({ label = "↓ " .. rate(env.download) })
     end)
 
     -- vm_stat says "Pages occupied by compressor", not "Pages compressed".
     ram:subscribe({ "routine", "forced" }, function()
+        if target then return end
         sbar.exec([[vm_stat | awk '/page size/{gsub(/[^0-9]/,"",$8); ps=$8} /Pages active/{a=$3} /Pages wired/{w=$4} /occupied by compressor/{c=$5} END{printf "%.0f", (a+w+c)*ps/1073741824}']],
             function(gb)
                 ram:set({ label = tostring(gb):gsub("%s", "") .. "G" })
             end)
     end)
+
+    -- Nothing remote can push into the bar, so the C providers feed the local path and
+    -- a timed ssh poll feeds this one. Both stay live; `target` decides which paints.
+    local driver = sbar.add("item", "system.remote", {
+        position = "right",
+        drawing = false,
+        updates = true,
+        update_freq = conf.poll or 5,
+    })
+
+    local function fetch()
+        if not target then return end
+        local asked = target
+        sbar.exec(string.format("%s %s", ctx.shell_quote(ctx.helper("remote_perf.sh")),
+            ctx.shell_quote(target)), function(out)
+            if asked ~= target then return end
+            local load, mem, up, down = tostring(out):match("(%d+) (%d+) (%d+) (%d+)")
+            -- An unreachable host and an idle one must not read the same, and leaving the
+            -- previous host's numbers up would attribute them to this one.
+            if not load then
+                cpu:set({ label = { string = "···", color = ctx.with_alpha(p.fg, 0.4) } })
+                ram:set({ label = "--" })
+                net_up:set({ label = "↑ " .. rate(nil) })
+                net_down:set({ label = "↓ " .. rate(nil) })
+                return
+            end
+            show_cpu(tonumber(load))
+            ram:set({ label = mem .. "G" })
+            net_up:set({ label = "↑ " .. rate(up .. "KBps") })
+            net_down:set({ label = "↓ " .. rate(down .. "KBps") })
+        end)
+    end
+    driver:subscribe({ "routine", "forced" }, fetch)
+
+    if follows then
+        sbar.add("event", "host_change")
+        driver:subscribe("host_change", function(env)
+            local pick = env.HOST
+            if not pick or pick == "" then return end
+            if pick == "local" then pick = nil end
+            if pick == target then return end
+            target = pick
+            fetch()
+        end)
+    end
+    fetch()
 
     cpu:subscribe("mouse.clicked", function()
         sbar.exec("open -a 'Activity Monitor'")

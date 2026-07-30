@@ -44,10 +44,9 @@ function M.load(ctx)
 
     cluster({ "surf" })
     cluster({ "session" })
-    cluster({ "herdr" })
     cluster({ "repo" })
-    cluster({ "servers" })
-    cluster({ "system" })
+    -- One unit: the selector sits between the two widgets it retargets.
+    cluster({ "herdr", "servers", "system" })
     if not media_left then cluster({ "media" }) end
 end
 

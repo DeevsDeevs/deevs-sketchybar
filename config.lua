@@ -29,17 +29,19 @@ return {
         whitelist = { ["com.spotify.client"] = true, ["com.apple.Music"] = true },
     },
 
+    -- host: "local" (or absent) · "selected" to follow the servers picker · an ssh alias
     system = {
         enabled = true,      -- cpu sparkline + ram + net
+        host = "selected",
+        poll = 5,            -- seconds, remote hosts only
     },
 
     herdr = {
         enabled = true,      -- agent fleet (needs the herdr CLI)
-        hosts = {
-            { name = "local" },
-            -- { name = "prod-1", ssh = "deevs@prod-1" },
-        },
+        host = "selected",
         poll = 5,            -- seconds
+        -- hosts is the untargeted list, ignored while host = "selected"
+        -- hosts = { { name = "local" }, { name = "prod-1", ssh = "deevs@prod-1" } },
     },
 
     session = {
@@ -72,7 +74,11 @@ return {
     },
 
     -- hosts from ~/.ssh/config via `ssh -G`; filter = "pattern" or hosts = { ... } to narrow
-    servers = { enabled = true },
+    servers = {
+        enabled = true,
+        select = true,       -- chip picks the target host; without it, a dot per host
+        default = "local",
+    },
 
     -- Follows the shell's chpwd/precmd hook — nothing outside the shell can
     -- tell which pane has focus. Set `path` to pin one repo.

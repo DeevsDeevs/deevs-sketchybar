@@ -46,16 +46,50 @@ Always on: the brand glyph and the front-app name. Everything else is optional.
 |---|---|---|
 | `spaces` | per-space chips with app icons | `icons`, `max` |
 | `media` | now playing, album art, spectrum EQ | `cover`, `sonar`, `text_width`, `eq_bars`, `eq_height`, `whitelist` |
-| `system` | CPU sparkline · RAM · network | — |
+| `system` | CPU sparkline · RAM · network | `host`, `poll` |
 | `session` | pomodoro ring and countdown | needs Session.app |
-| `herdr` | AI agent fleet, local and over SSH | `hosts`, `poll` |
+| `herdr` | AI agent fleet, local and over SSH | `host`, `hosts`, `poll` |
 | `repo` | repo · branch · dirty count · CI dot | `path` to pin, `ci` (needs `gh`) |
-| `servers` | reachability dots, one per ssh host | `filter`, `hosts` — both optional |
+| `servers` | reachability dots, or a host selector | `select`, `default`, `filter`, `hosts` |
 | `weather` | glyph and temperature | `place` |
 | `surf` | wave height and period for one break | `lat`, `lon`, `up` |
 | `calendar` `battery` `volume` `vpn` `mic` `lang` | small status chips | — |
 | `menus_swap` | click the app name to swap spaces for its menus | `true` · `false` |
 | `audio` | loopback routing for the EQ | `auto_route`, `volume_keys` |
+
+### Targeting a host
+
+With `servers.select = true` the servers chip stops showing a dot per host and
+becomes a picker: it names one target, and any widget set to `host = "selected"`
+follows it. Pick `prod-1` and the perf cluster shows that machine's load while
+herdr lists its agents.
+
+```lua
+servers = { enabled = true, select = true, default = "local" },
+system  = { host = "selected" },
+herdr   = { host = "selected" },
+```
+
+`host` takes three answers and defaults to the first, so configs written before
+this existed keep working untouched:
+
+| value | meaning |
+|---|---|
+| absent or `"local"` | this machine, as always |
+| `"selected"` | follows the servers picker |
+| an ssh alias | that host, whether or not a picker exists |
+
+Hosts come from `~/.ssh/config`, so the alias is the ssh target — nothing to
+configure twice. The chip shows the shortest unambiguous tail of the alias
+(`deevs.hetzner.berezka` and `deevs.aws.berezka` render as `hetzner.berezka` and
+`aws.berezka`).
+
+Remote perf is **polled, not pushed**. Local CPU and network come from C event
+providers that fire every 2s; nothing on another machine can push into your bar,
+so a remote target is one `ssh` per `poll` seconds reading `/proc`. The host needs
+`/proc` (any Linux) and key-based ssh. When a poll fails the numbers blank to `···`
+rather than holding the last value — an unreachable host and an idle one must not
+read the same.
 
 `weather` and `surf` use [Open-Meteo](https://open-meteo.com) — no key, no
 account — and locate you through CoreLocation, so no coordinates or city name
