@@ -23,6 +23,9 @@ return function(ctx)
     -- cover, eq — see the ordering note at each block below.
     local SIDE = media.side == "left" and "left" or "right"
     local GROUP = ctx.groups[SIDE]
+    -- Text that fits hugs the cover rather than stranding itself at the far edge of
+    -- the box, and the cover is on the opposite side on each half of the bar.
+    local FIT_ALIGN = SIDE == "right" and "right" or "left"
     local function place(item)
         table.insert(GROUP, item.name)
         return item
@@ -114,11 +117,12 @@ return function(ctx)
         title = line("media.title", { size = 11, y = -5, pad = 10, color = p.fg })
     end
 
-    if SIDE == "right" then
-        add_eq(); add_cover(); add_text()
-    else
-        add_text(); add_cover(); add_eq()
-    end
+    -- Same order for both sides, and it mirrors for free: items lay out away from
+    -- their own edge, so eq/cover/text reads text-cover-eq on the right and
+    -- eq-cover-text on the left. What matters is that the text is created LAST, so
+    -- the hover expansion grows into empty space. Created first, it shoves the cover
+    -- out from under the pointer, which exits, collapses, re-enters and oscillates.
+    add_eq(); add_cover(); add_text()
 
     -- On the left the hover expansion pushes the cluster toward the notch, and the
     -- room left of it shrinks with every space chip. Measure it instead of trusting
@@ -254,12 +258,13 @@ return function(ctx)
             drawing = drawing,
             label = {
                 string = clip(env.ARTIST, 28),
-                align = text_px(env.ARTIST, 9) > TEXT_W and "left" or "right",
+                align = text_px(env.ARTIST, 9) > TEXT_W and "left" or FIT_ALIGN,
             },
         })
         title:set({
+            -- Overflowing text must be left-aligned; the marquee slides padding_left.
             drawing = drawing,
-            label = { string = env.TITLE, align = overflow > 0 and "left" or "right" },
+            label = { string = env.TITLE, align = overflow > 0 and "left" or FIT_ALIGN },
         })
         if eq_bars then
             for _, bar in ipairs(eq_bars) do bar:set({ drawing = drawing }) end
