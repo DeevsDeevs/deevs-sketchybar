@@ -1,14 +1,14 @@
--- Herd: your agent fleet (herdr) across local + SSH hosts.
+-- herdr: your agent fleet across local + SSH hosts.
 -- Chip: ✳ + working count, red badge treatment when any agent is blocked.
 -- Popup: agents grouped needs-you → working → resting; click a row to focus.
 return function(ctx)
     local p = ctx.palette
-    -- `herd = true` and an omitted host list both mean "just this machine".
-    local conf = type(ctx.config.herd) == "table" and ctx.config.herd or {}
+    -- `herdr = true` and an omitted host list both mean "just this machine".
+    local conf = type(ctx.config.herdr) == "table" and ctx.config.herdr or {}
     local hosts = conf.hosts or { { name = "local" } }
     local fleet = {} -- host -> agents list
 
-    local chip = sbar.add("item", "herd", {
+    local chip = sbar.add("item", "herdr", {
         position = "right",
         icon = { string = "✳", color = ctx.with_alpha(p.fg, 0.5), font = { size = 12.0 } },
         label = { string = "—", font = { family = ctx.settings.font.numbers } },
@@ -17,7 +17,7 @@ return function(ctx)
         popup = { align = "right" },
     })
     table.insert(ctx.groups.right, chip.name)
-    local backdrop = ctx.chip("herd.chip", { chip.name })
+    local backdrop = ctx.chip("herdr.chip", { chip.name })
 
     -- ConnectTimeout bounds only the handshake, so a host that connects and then
     -- stalls in `herdr agent list` would hang forever; ServerAlive gives the
@@ -57,7 +57,7 @@ return function(ctx)
     end
 
     local function render_popup()
-        sbar.remove("/herd\\.row\\..*/")
+        sbar.remove("/herdr\\.row\\..*/")
         local order = { blocked = 1, working = 2, done = 3, idle = 4 }
         local n = 0
         for _, host in ipairs(hosts) do
@@ -75,7 +75,7 @@ return function(ctx)
                 local focus = host.ssh
                     and ("ssh -o BatchMode=yes " .. ctx.shell_quote(host.ssh) .. " herdr agent focus " .. ctx.shell_quote(a.pane_id))
                     or ("herdr agent focus " .. ctx.shell_quote(a.pane_id))
-                sbar.add("item", "herd.row." .. n, {
+                sbar.add("item", "herdr.row." .. n, {
                     position = "popup." .. chip.name,
                     icon = {
                         string = "●",
@@ -88,12 +88,12 @@ return function(ctx)
                             title:sub(1, 42), host.name),
                         padding_right = 10,
                     },
-                    click_script = focus .. "; sketchybar --set herd popup.drawing=off",
+                    click_script = focus .. "; sketchybar --set herdr popup.drawing=off",
                 })
             end
         end
         if n == 0 then
-            sbar.add("item", "herd.row.0", {
+            sbar.add("item", "herdr.row.0", {
                 position = "popup." .. chip.name,
                 icon = { drawing = false },
                 label = { string = "no agents running", color = ctx.with_alpha(p.fg, 0.5) },

@@ -33,8 +33,8 @@ return {
         enabled = true,      -- cpu sparkline + ram + net in one cluster
     },
 
-    herd = {
-        enabled = true,      -- herdr agent fleet (needs: herdr)
+    herdr = {
+        enabled = true,      -- agent fleet (needs the herdr CLI)
         hosts = {
             { name = "local" },
             -- { name = "prod-1", ssh = "deevs@prod-1" },

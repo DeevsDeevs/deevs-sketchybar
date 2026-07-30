@@ -26,7 +26,7 @@ function M.load(ctx)
     ctx.gap()
     if on(c.session) then require("widgets.session")(ctx) end
     ctx.gap()
-    if on(c.herd) then require("widgets.herd")(ctx) end
+    if on(c.herdr) then require("widgets.herdr")(ctx) end
     ctx.gap()
     if on(c.system) then require("widgets.system")(ctx) end
     ctx.gap()

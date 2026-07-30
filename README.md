@@ -33,7 +33,7 @@ Any widget takes either a block or a bare boolean — `media = false` and
 | `bar` | `height`, `icon` | the leftmost glyph |
 | `spaces` | per-space chips | `enabled`, `icons`, `max` (cap on how many are drawn) |
 | `media` | now playing | `enabled`, `cover`, `sonar`, `eq_bars`, `eq_height`, `whitelist` |
-| `herd` | agent fleet | `enabled`, `hosts` (incl. SSH targets), `poll` |
+| `herdr` | agent fleet | `enabled`, `hosts` (incl. SSH targets), `poll` |
 | `session` | pomodoro | `enabled` — reads Session.app, controls via deep links |
 | `system` | cpu · ram · net | `enabled` |
 | `volume` `battery` `calendar` `vpn` `mic` | small chips | `enabled` |
@@ -44,12 +44,12 @@ Any widget takes either a block or a bare boolean — `media = false` and
 The brand glyph and the front-app name are always on; everything else is
 yours to remove.
 
-Default ships as: `glass · everforest · glass 0.66 · sonar+session+herd`.
+Default ships as: `glass · everforest · glass 0.66 · sonar+session+herdr`.
 
 ## What lives up here
 
 - **Sonar** — the bar hears your music: live cava spectrum in the media widget
-- **Herd** — mission control for AI agent fleets across local + SSH hosts (herdr integration): working counts, blocked-agent alerts, click-to-focus
+- **herdr** — mission control for AI agent fleets across local + SSH hosts: working counts, blocked-agent alerts, click-to-focus
 - **Session** — pomodoro chip with a live countdown over the intent name and a ring that fills as the block burns down; controls and focus stats wired to Session.app's deep links and database
 - **System cluster** — load-colored CPU sparkline, RAM, network in one bracket; per-core popup
 - **Mood ring** — every workspace has its own accent; the bar breathes with you
