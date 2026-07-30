@@ -75,14 +75,21 @@ return function(ctx)
             backdrop:set({ drawing = false })
             return
         end
+        -- One number, coloured. U+26A1 and the alert glyph both fall back off
+        -- JetBrainsMono and render oversized on their own baseline; at this size the
+        -- colour carries the state anyway and the popup has the breakdown.
+        local count, color = total, ctx.with_alpha(p.fg, 0.7)
+        if blocked > 0 then
+            count, color = blocked, p.bad
+        elseif working > 0 then
+            count, color = working, p.accent
+        end
+
         backdrop:set({ drawing = true })
         chip:set({
             drawing = true,
-            icon = { color = blocked > 0 and p.bad or (working > 0 and p.accent or ctx.with_alpha(p.fg, 0.5)) },
-            label = {
-                string = blocked > 0 and (working .. "⚡ " .. blocked .. "󰀦") or (working > 0 and working .. "⚡" or tostring(total)),
-                color = blocked > 0 and p.bad or p.fg,
-            },
+            icon = { color = color },
+            label = { string = tostring(count), color = color },
         })
     end
 
@@ -254,8 +261,8 @@ return function(ctx)
                     position = "popup." .. chip.name,
                     icon = {
                         string = open and "▾" or "▸",
-                        color = ctx.with_alpha(p.fg, 0.3),
-                        font = { size = 8.0 },
+                        color = ctx.with_alpha(p.fg, 0.42),
+                        font = { size = 9.0 },
                         padding_left = 12,
                         padding_right = 7,
                     },
