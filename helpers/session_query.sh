@@ -1,34 +1,23 @@
 #!/usr/bin/env bash
 
 # Session.app state for widgets/session.lua.
-#
 #   current -> "RUN\t<seconds left>\t<total seconds>\t<focus|rest>\t<title>"
 #              "IDLE" when nothing is running, "NODB" when Session isn't here
 #   today   -> "<focus blocks>\t<focused minutes>"
-#
-# The running session is NOT in the sqlite: Session only writes a task row once
-# the block finishes, so the database is history. The live one lives under the
-# RunningSession key of the group container's preferences, as a JSON blob
-# stored in a data field. Read it through `defaults export` rather than off
-# disk, because Session writes via NSUserDefaults and the file lags behind.
-#
-# Session keeps Core Data timestamps (unix minus 978307200) in the sqlite, and
-# ISO-8601 UTC in the plist. The title is emitted last so a tab inside an
-# intent can't shift the fields before it.
+# The sqlite is history only; the live session is the RunningSession pref of the
+# group container, read via `defaults export` (the plist on disk lags).
+# Title is emitted last so an embedded tab can't shift the fields.
 
 set -u
 
-# macOS tools first: a nix/devbox PATH shadows base64 (GNU wants -d, not -D)
-# and date (GNU has no -j), both of which are used below.
+# macOS tools first: a nix/devbox PATH shadows base64 and date (GNU has no -j).
 export PATH="/usr/bin:/bin:/opt/homebrew/bin:$HOME/.local/share/devbox/global/default/.devbox/nix/profile/default/bin:$PATH"
 
 GROUP="$HOME/Library/Group Containers/98JSB2MQB3.group.com.philipyoungg.translucent"
 DB="${SESSION_DB:-$GROUP/Session.sqlite}"
 DOMAIN="${SESSION_DOMAIN:-$GROUP/Library/Preferences/98JSB2MQB3.group.com.philipyoungg.translucent}"
 
-# NODB (no Session installed) is distinct from IDLE (installed, nothing
-# running): the widget hides itself entirely for the former and keeps an empty
-# ring for the latter.
+# NODB (Session not installed) hides the widget; IDLE keeps an empty ring.
 if [ ! -r "$DB" ] && [ ! -r "$DOMAIN.plist" ]; then
   [ "${1:-current}" = "current" ] && printf 'NODB\n'
   exit 0
@@ -44,23 +33,19 @@ case "${1:-current}" in
       exit 0
     fi
 
-    # floor the numbers: pause_buffer comes back as a float once a block has
-    # been paused and resumed, which shell arithmetic cannot parse at all.
+    # floor: pause_buffer turns float after a pause/resume; shell arithmetic can't parse it.
     IFS=$'\t' read -r state dur buf start title <<EOF
 $(printf '%s' "$json" | jq -r '[(.state//""), (.duration_second//0|floor), (.pause_buffer//0|floor), (.start_date//""), (.title//"")] | @tsv')
 EOF
 
-    # Only states we have actually observed count as running; a paused or
-    # unknown state falls back to the empty ring rather than a countdown that
-    # would keep draining while the timer is stopped.
+    # Paused/unknown states read as IDLE, not a countdown that keeps draining.
     case "${state:-}" in
       session) kind=focus ;;
       rest)    kind=rest ;;
       *)       printf 'IDLE\n'; exit 0 ;;
     esac
 
-    # BSD date is an exact-format parser, so a fractional-second timestamp
-    # would fail outright and silently read as idle. Drop any ".123" first.
+    # BSD date -f is exact-match: strip fractional seconds or parsing fails.
     start="${start%%.*}"
     case "$start" in *Z) ;; *) start="${start}Z" ;; esac
     started="$(date -j -u -f '%Y-%m-%dT%H:%M:%SZ' "${start:-}" +%s 2>/dev/null || true)"
@@ -79,6 +64,7 @@ EOF
 
   today)
     [ -r "$DB" ] || exit 0
+    # ZSTARTDATE is Core Data epoch: unix minus 978307200.
     sqlite3 -readonly "file:$DB?mode=ro" \
       "SELECT count(*) || char(9) || cast(coalesce(sum(ZENDDATE-ZSTARTDATE)/60,0) as int)
        FROM ZSESSIONTASK

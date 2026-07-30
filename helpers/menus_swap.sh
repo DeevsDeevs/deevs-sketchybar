@@ -1,12 +1,8 @@
 #!/usr/bin/env bash
 
 # Spaces ↔ front-app menus swap.
-#
-# Runs the accessibility-backed `menus` helper and sets labels itself, because
-# sketchybar must be the process that spawns it: when the lua config spawns it
-# instead, macOS attributes the accessibility permission elsewhere and the
-# helper returns nothing. State lives in a file so the toggle is idempotent
-# across reloads.
+# sketchybar itself must spawn `menus`: macOS ties the Accessibility grant to
+# the spawning process. State file keeps the toggle idempotent across reloads.
 
 set -u
 DIR="$(cd "$(dirname "$0")" && pwd)"

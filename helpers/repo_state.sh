@@ -1,20 +1,13 @@
 #!/usr/bin/env bash
 
-# Everything the repo widget needs about one directory, in one tab-separated line:
+# One tab-separated line of git state for the repo widget:
 #
 #   ok <queried> <root> <branch|(detached)> <sha7> <dirty> \
 #      <staged> <unstaged> <untracked> <ahead> <behind> <upstream> <subject>
 #   no <queried>                          -- not inside a git repo
 #
-# The queried directory is echoed back on purpose. SbarLua registers each exec
-# callback with luaL_ref and unrefs it on reply, so refs are recycled and one
-# command's output can be handed to a different command's callback — measured:
-# a rev-parse for one repo returned another repo's path. The widget compares the
-# echo against what it asked for and drops anything that does not match, so a
-# crossed reply is inert rather than wrong.
-#
-# Answering everything in one process also keeps the number of concurrent execs
-# down, which is what makes that collision likely in the first place.
+# SbarLua recycles exec callback refs, so a reply can reach the wrong callback;
+# echoing back the queried directory lets the widget drop crossed replies.
 
 set -u
 export PATH="/usr/bin:/bin:/opt/homebrew/bin:$PATH"
@@ -28,15 +21,13 @@ if [ -z "$root" ]; then
     exit 0
 fi
 
-# --no-optional-locks so a poller never takes index.lock away from the user's own
-# git commands. --untracked-files=normal because status.showUntrackedFiles in a
-# user's gitconfig otherwise silently changes the numbers.
+# --no-optional-locks: never take index.lock from the user's own git commands.
+# --untracked-files=normal: a user's status.showUntrackedFiles must not skew counts.
 status="$(git --no-optional-locks -C "$root" status --porcelain=v2 --branch \
     --untracked-files=normal 2>/dev/null)"
 [ -n "$status" ] || exit 1
 
-# Tabs are the field separator, so a subject containing one would shift every
-# later field. Newlines can't appear in %s but strip defensively.
+# Tabs are the field separator; strip tabs and newlines from the subject.
 subject="$(git --no-optional-locks -C "$root" log -1 --format=%s 2>/dev/null \
     | tr '\t\n' '  ')"
 
@@ -46,8 +37,7 @@ printf '%s\n' "$status" | awk -v d="$dir" -v r="$root" -v subj="$subject" '
     $1=="#" && $2=="branch.upstream" { up=$3 }
     # "+N -M" for ahead/behind; absent entirely when there is no upstream.
     $1=="#" && $2=="branch.ab"       { a=$3+0; b=$4+0 }
-    # Tracked changes: "1"/"2" records carry a two-letter XY code, X staged and
-    # Y unstaged. "u" is an unmerged path, which counts as both.
+    # "1"/"2" records carry XY (X staged, Y unstaged); "u" unmerged counts as both.
     $1=="1" || $1=="2" {
         n++
         split($2, xy, "")

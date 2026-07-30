@@ -4,9 +4,8 @@ return function(ctx)
     local p, c, style = ctx.palette, ctx.config, ctx.style
     local spaces = {}
 
-    -- `spaces = true` is documented shorthand, so every read has to go through
-    -- this: indexing a boolean throws out of widgets.init, and nothing catches
-    -- it, so end_config() never runs and the whole bar comes up dead.
+    -- `spaces = true` is documented shorthand: indexing a boolean throws out of
+    -- widgets.init and the whole bar comes up dead.
     local conf = type(c.spaces) == "table" and c.spaces or {}
     local max = conf.max or 10
     local show_icons = conf.icons ~= false
@@ -27,8 +26,7 @@ return function(ctx)
         if #indices == 0 then
             for i = 1, max do table.insert(indices, i) end
         end
-        -- max is documented as a cap, so honour it for the yabai answer too,
-        -- not just the fallback.
+        -- max caps the yabai answer too, not just the fallback
         while #indices > max do table.remove(indices) end
         return indices
     end

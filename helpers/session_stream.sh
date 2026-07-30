@@ -1,13 +1,8 @@
 #!/usr/bin/env bash
 
 # Pushes Session state into the bar as session_update events.
-#
-# Pushes rather than letting the widget poll: sbar.exec callbacks stop arriving
-# after a few minutes of sustained polling, and the chip then freezes on
-# whatever it last saw. One long-lived pusher needs no callbacks at all.
-#
-# Only a coarse resync is sent; widgets/session.lua counts the seconds down
-# itself between updates.
+# Push, don't poll: sbar.exec callbacks stop arriving after minutes of
+# sustained polling. widgets/session.lua counts seconds down between resyncs.
 
 set -u
 export PATH="/usr/bin:/bin:/opt/homebrew/bin:$HOME/.local/share/devbox/global/default/.devbox/nix/profile/default/bin:$PATH"
@@ -17,16 +12,12 @@ QUERY="$DIR/session_query.sh"
 [ -x "$QUERY" ] || exit 0
 
 while :; do
-  # Detached from sketchybar, so nothing else would ever reap this: without the
-  # check it keeps polling (and spawning a handful of processes every 2s) long
-  # after the bar is gone.
+  # Detached from sketchybar: exit when the bar is gone, or this polls forever.
   pgrep -x sketchybar >/dev/null 2>&1 || exit 0
 
   line="$("$QUERY" current)"
 
-  # Poll rate follows the state. Only a running block needs second-level
-  # freshness; idle needs to notice a new one starting, and once Session turns
-  # out to be absent it cannot appear without a relaunch, which restarts this.
+  # Poll rate follows the state; NODB can't change without a relaunch of this.
   case "$line" in
     RUN*)
       nap=2
@@ -48,8 +39,7 @@ while :; do
         TODAY_N="${today_n:-0}" TODAY_MIN="${today_min:-0}" >/dev/null 2>&1
       ;;
     *)
-      # Only an explicit IDLE clears the chip. Anything else means the query
-      # itself broke, and asserting "idle" there blanks a running session.
+      # Only explicit IDLE clears the chip; a broken query must not blank a running session.
       nap=10
       ;;
   esac

@@ -7,9 +7,8 @@ return function(ctx)
         .. (auto_route and " ROUTE_FLAG=--route" or "")
         .. " " .. ctx.shell_quote(ctx.helper("volume_popup.sh"))
 
-    -- No click_script: an item that has one never forwards its mouse events to
-    -- the lua bridge, so mouse.exited.global would never fire and the popup
-    -- would stay open until clicked again. The helper is run from lua instead.
+    -- No click_script: an item with one never forwards mouse events to the lua
+    -- bridge, so mouse.exited.global would never fire.
     local volume = sbar.add("item", "widgets.volume", {
         position = "right",
         icon = { string = "\u{f057e}", font = { size = 13.0 }, color = ctx.with_alpha(p.fg, 0.8) },
@@ -41,8 +40,6 @@ return function(ctx)
         slider:set({ slider = { percentage = vol } })
     end
 
-    -- The routed aggregate has no volume of its own, so the level is read from
-    -- the real device; volume_change still fires when nothing is routed.
     local function refresh()
         sbar.exec(helper .. " volume", function(out)
             render(tonumber(tostring(out):match("%d+")))
@@ -60,17 +57,10 @@ return function(ctx)
         if not (env.INFO.modifier == "ctrl") then delta = delta * 10.0 end
         sbar.exec(helper .. " volume " .. (delta > 0 and "+" or "") .. math.floor(delta), refresh)
     end)
-    -- Optional: only needed if the media keys do nothing while routed. The
-    -- tap consumes the three volume keys and applies them to the real device
-    -- beneath the aggregate; everything else passes through.
-    -- Reap unconditionally, and match by process name. Inside the `if` it never
-    -- ran while the option was off, so a tap started earlier survived for good;
-    -- and a path pattern misses one launched from its own directory, where argv
-    -- is just "./bin/volume_keys". A stray tap is not cosmetic — it sits in the
-    -- keyboard event path.
-    -- Reap and respawn in ONE shell: as two sbar.exec calls the ordering is not
-    -- guaranteed, and the pkill lands after the spawn and kills the tap it was
-    -- meant to replace.
+    -- Optional tap: applies the three volume keys to the real device beneath
+    -- the aggregate. Reap unconditionally by process name (argv may be relative),
+    -- and in the SAME shell as the spawn — as two execs the pkill can land after
+    -- the spawn and kill the tap it was meant to replace.
     local reap = "pkill -x volume_keys >/dev/null 2>&1"
     if (ctx.config.audio or {}).volume_keys then
         sbar.exec(reap .. "; " .. ctx.detached(ctx.shell_quote(ctx.helper("volume_keys/bin/volume_keys"))))
@@ -78,9 +68,8 @@ return function(ctx)
         sbar.exec(reap)
     end
 
-    -- Hide and drop the rows in one message: hiding over the bridge and then
-    -- removing from a second process renders twice, so the popup visibly
-    -- shrinks before it disappears.
+    -- One message: hide + remove from two processes renders twice and the popup
+    -- visibly shrinks before it disappears.
     local function close_popup()
         sbar.exec("sketchybar --set " .. volume.name .. " popup.drawing=off"
             .. " --remove '/volume.device\\..*/' >/dev/null 2>&1")

@@ -7,9 +7,8 @@ return function(ctx)
         label = { font = { family = ctx.settings.font.numbers }, color = ctx.with_alpha(p.fg, 0.8) },
         update_freq = 180,
         popup = { align = "center" },
-        -- Hides itself when pmset reports no percentage, and `when_shown` (the
-        -- structure's default) would then stop delivering routine, so a single
-        -- failed read would hide the chip permanently.
+        -- updates defaults to when_shown: once drawing=false no routine arrives,
+        -- so one failed pmset read would hide the chip permanently.
         updates = true,
     })
     table.insert(ctx.groups.right, battery.name)
@@ -36,8 +35,7 @@ return function(ctx)
                 elseif charge > 20 then icon, color = "󰁻", p.warn
                 else icon, color = "󰁺", p.bad end
             end
-            -- Desktop Macs report AC power with no percentage at all; show
-            -- nothing rather than a permanent "?" chip.
+            -- Desktop Macs report AC power with no percentage; show nothing.
             if not charge then return battery:set({ drawing = false }) end
             battery:set({
                 drawing = true,

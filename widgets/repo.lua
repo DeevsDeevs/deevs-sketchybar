@@ -1,28 +1,21 @@
--- repo sense: the git repo you are working in — name, branch, dirty count, and
--- an optional CI dot from the latest GitHub Actions run on that branch.
--- Follows the focused shell: a zsh chpwd/precmd hook pushes the cwd with
---   sketchybar --trigger repo_cwd RPATH="$PWD"
--- Setting `path` pins the chip to one repo instead and ignores the shell.
+-- repo widget: the git repo you are working in — name, branch, dirty count, optional
+-- CI dot. Nothing outside the shell can tell which terminal pane has focus, so a zsh
+-- chpwd/precmd hook pushes the cwd (--trigger repo_cwd RPATH="$PWD"); `path` pins one repo.
 return function(ctx)
     local p = ctx.palette
-    -- `repo = true` is as valid as a table (see widgets/init.lua), so never
-    -- index the config block without checking it is one.
+    -- `repo = true` is valid config (see widgets/init.lua): check before indexing.
     local cfg = type(ctx.config.repo) == "table" and ctx.config.repo or {}
 
     local BRANCH_GLYPH, COMMIT_GLYPH, DOT = "\u{e725}", "\u{e729}", "\u{f0765}"
-    -- JetBrainsMono advances 0.6em, so the 118px box holds ~17 characters at 11px
-    -- and ~21 at 9px. The chip follows you between repos, so neither line may
-    -- push the bar around.
+    -- 118px ≈ 17 chars at 11px, 21 at 9px (JetBrainsMono); the chip must not push the bar.
     local NAME_MAX, BRANCH_MAX = 20, 17
 
-    -- A branch's meaning is in its tail, and the type prefix carries almost none
-    -- of it: `fix/artifact-d…` says nothing where `artifact…timeout` says a lot.
+    -- A branch's meaning is in its tail, not the type prefix.
     local TYPE_PREFIX = { "feature/", "refactor/", "release/", "hotfix/",
                           "bugfix/", "chore/", "feat/", "docs/", "test/", "fix/" }
     local CI_FLOOR = 10 -- burst guard on gh; the real cadence is ci's update_freq
 
-    -- Not every non-success is a failure: a skipped or cancelled run says
-    -- nothing about the code, so it reads as unknown rather than red.
+    -- A skipped or cancelled run says nothing about the code: unknown, not red.
     local VERDICT = {
         success   = p.good,
         skipped   = ctx.with_alpha(p.fg, 0.35),
@@ -30,8 +23,7 @@ return function(ctx)
         cancelled = ctx.with_alpha(p.fg, 0.35),
     }
 
-    -- Only `~` and `~/…`. `~otheruser` is a shell feature we would corrupt, and
-    -- substituting $HOME through gsub would additionally have to escape any %.
+    -- Only `~` and `~/…`: `~otheruser` is a shell feature, and a $HOME gsub would need % escaping.
     local function expand(path)
         local home = os.getenv("HOME")
         if not home then return path end
@@ -41,8 +33,7 @@ return function(ctx)
 
     local pinned = cfg.path and expand(cfg.path) or nil
 
-    -- io.popen inherits exactly the environment sbar.exec's own popen gets, so
-    -- a tool found here is a tool the callbacks can actually run.
+    -- io.popen sees the same environment as sbar.exec, so a hit here is runnable in callbacks.
     local function have(tool)
         local f = io.popen("command -v " .. tool .. " 2>/dev/null")
         local found = (f and f:read("*a") or "") ~= ""
@@ -50,15 +41,13 @@ return function(ctx)
         return found
     end
 
-    -- Clip by codepoint: a byte sub cuts a multibyte character in half and
-    -- renders a replacement glyph.
+    -- Clip by codepoint: a byte sub can cut a multibyte character in half.
     local function clip(value, limit)
         local str = tostring(value or "")
         local cut = utf8.offset(str, limit + 1)
         return cut and string.format("%s…", str:sub(1, cut - 1)) or str
     end
 
-    -- Ellipsis in the middle, keeping both ends.
     local function middle_clip(value, limit)
         local str = tostring(value or "")
         local len = utf8.len(str) or #str
@@ -85,18 +74,14 @@ return function(ctx)
         return middle_clip(str, limit)
     end
 
-    -- SbarLua pushes the child's stdout with lua_pushstring over a buffer it
-    -- never NUL-terminates, so a read can carry whatever followed it in memory.
-    -- Every command here ends in a newline, so the first line is the safe part.
+    -- SbarLua's exec stdout is not NUL-terminated and can carry a garbage tail: first line only.
     local function first_line(out)
         local str = tostring(out or ""):match("[^\r\n]+") or ""
         return (str:gsub("^%s+", ""):gsub("%s+$", ""))
     end
 
-    -- The git query lives in helpers/repo_state.sh, like every other non-trivial
-    -- shell command here.
-
-    -- Created before the text item, so it lands to the right of it.
+    -- Right-position items lay out right-to-left in creation order: created first,
+    -- so the dot lands right of the text.
     local ci
     if cfg.ci and have("gh") then
         ci = sbar.add("item", "widgets.repo.ci", {
@@ -112,17 +97,10 @@ return function(ctx)
         ctx.cluster("repo", ci.name)
     end
 
-    -- Two-line stack, same construction as the media widget: the repo name sits
-    -- above the branch. They share one box only because both labels carry the
-    -- SAME fixed width — width = 0 on the item does not collapse the upper line,
-    -- it just parks it beside the lower one at a different height, which reads as
-    -- two ragged lines. The upper line is created first so it is the zero-width
-    -- overlay sitting on top.
+    -- Two-line stack, as in media.lua: two items share one box only when both labels
+    -- carry the SAME fixed width; width = 0 does not collapse an item.
     local TEXT_W = 118
 
-    -- The dirty count also moves when an editor writes or a rebase runs in
-    -- another tab, neither of which fires the shell hook, so a routine floor
-    -- stays; 15s is live enough and far below the rate that starves callbacks.
     local top_line = sbar.add("item", "widgets.repo.name", {
         position = "right",
         width = 0,
@@ -154,8 +132,8 @@ return function(ctx)
     table.insert(ctx.groups.right, repo.name)
     ctx.cluster("repo", repo.name)
 
-    -- Popup rows carry the detail the chip has no room for. They join neither
-    -- ctx.groups.right nor the cluster: popup children are not bar items.
+    -- Popup rows carry the untruncated detail; popup children are not bar items,
+    -- so they join no group or cluster.
     local ROWS = { "repo", "branch", "upstream", "changes", "last", "ci" }
     local rows, actions = {}, {}
     for _, key in ipairs(ROWS) do
@@ -165,8 +143,6 @@ return function(ctx)
                      color = ctx.with_alpha(p.fg, 0.45) },
             label = { string = "—", width = 300, align = "left" },
         })
-        -- Rows act on click. No click_script — an item that has one never
-        -- forwards mouse events, and the popup needs mouse.exited.global to close.
         rows[key]:subscribe("mouse.clicked", function()
             repo:set({ popup = { drawing = false } })
             local action = actions[key]
@@ -174,9 +150,8 @@ return function(ctx)
         end)
     end
 
-    -- $EDITOR rather than a hardcoded editor, and only its first word: the value
-    -- may carry flags, and a blocking one ("zeditor --wait") would hold the exec
-    -- child until SbarLua's alarm(60) kills it. Falls back to `open`.
+    -- Only $EDITOR's first word: a blocking flag ("zeditor --wait") would hang the
+    -- exec child until SbarLua's alarm(60) kills it. Falls back to `open`.
     local function in_editor(path)
         return string.format(
             "set -- ${EDITOR:-open}; exec \"$1\" %s >/dev/null 2>&1 &",
@@ -205,15 +180,13 @@ return function(ctx)
         local lower = branch
             and short_branch(branch, BRANCH_MAX - #suffix)
             or sha or "?"
-        -- Away from the repo the chip is a memory rather than a location: dimming
-        -- says so without the reflow that hiding it would cause.
+        -- Away from the repo, dim rather than hide: hiding reflows the bar.
         top_line:set({ label = {
             string = clip(name, NAME_MAX),
             color = ctx.with_alpha(p.fg, here and 0.5 or 0.25),
         } })
         repo:set({
-            -- Detached HEAD is normal (mid-rebase, a checked-out tag) and has no
-            -- branch name, so it shows the short SHA under a commit glyph.
+            -- Detached HEAD (mid-rebase, checked-out tag): short SHA under a commit glyph.
             icon = { string = branch and BRANCH_GLYPH or COMMIT_GLYPH,
                      color = ctx.with_alpha(p.fg, here and 0.7 or 0.3) },
             label = { string = string.format("%s%s", lower, suffix),
@@ -221,8 +194,7 @@ return function(ctx)
         })
     end
 
-    -- The popup is where the untruncated truth lives, so nothing here is clipped
-    -- except the commit subject, which has no natural bound.
+    -- Only the commit subject is clipped: it has no natural bound.
     fill = function()
         local function set(key, value, color)
             rows[key]:set({ label = { string = value or "—",
@@ -245,8 +217,7 @@ return function(ctx)
         set("last", sha and string.format("%s  %s", sha, clip(subject, 44)))
         set("ci", ci_text)
 
-        -- gh browse and gh run view resolve the remote themselves, so nothing
-        -- here has to know the forge URL.
+        -- gh browse / gh run view resolve the remote themselves.
         actions.repo = root and function() return in_editor(root) end or nil
         actions.branch = actions.repo
         actions.changes = actions.repo
@@ -265,13 +236,8 @@ return function(ctx)
         end or nil
     end
 
-    -- One exec answers root, branch, commit and dirty count together, for one
-    -- directory. Two separate calls were not just wasteful: SbarLua recycles its
-    -- exec callback refs, so with several in flight a reply can be delivered to
-    -- another exec's callback — measured, a rev-parse for one repo handed back a
-    -- different repo's path. The helper echoes the directory it was asked about
-    -- and anything that does not match what we asked is dropped, so a crossed
-    -- reply is inert instead of wrong.
+    -- SbarLua recycles exec callback refs, so a reply can be delivered to a different
+    -- exec's callback: the helper echoes the directory asked, mismatches are dropped.
     poll = function(dir)
         if not dir then return end
         sbar.exec(string.format("%s %s",
@@ -281,8 +247,7 @@ return function(ctx)
             if asked ~= dir then return end -- not our reply
 
             if verdict == "no" then
-                -- Not a repo. Hold the repo we already had and dim it, rather
-                -- than reflowing the bar on every cd to ~.
+                -- Not a repo: hold the last one, dimmed.
                 here = false
                 return paint()
             end
@@ -290,8 +255,7 @@ return function(ctx)
             local top, head, oid, count, st, un, q, ah, bh, up, subj = rest:match(
                 "^([^\t]*)\t([^\t]*)\t([^\t]*)\t(%d+)\t(%d+)\t(%d+)\t(%d+)\t(%d+)\t(%d+)\t([^\t]*)\t?(.*)$")
             if not top then
-                -- One bad read is usually contention (an index.lock mid-rebase),
-                -- not a lost repo; only a repeated one retires the chip.
+                -- One bad read is usually index.lock contention; only a repeated miss retires the chip.
                 misses = misses + 1
                 if misses < 3 then return end
                 root, name, branch, sha, dirty = nil, nil, nil, nil, nil
@@ -313,25 +277,20 @@ return function(ctx)
         end)
     end
 
-    -- Routine re-asks about the directory last reported, so a change made by an
-    -- editor or a rebase in another tab still shows up without the shell moving.
+    -- Routine re-polls the last directory: edits and rebases in other tabs never fire the shell hook.
     refresh = function() poll(pinned or seen_cwd or root) end
 
-    -- Detached HEAD has no branch to ask about, and an unfiltered run list would
-    -- answer for whichever branch ran last rather than for this checkout.
+    -- Unfiltered, gh answers for whichever branch ran last; detached HEAD has no branch to ask about.
     ci_fetch = function()
         if not (ci and root and branch) then return end
         if os.time() - ci_at < CI_FLOOR then return end
         ci_at = os.time()
-        -- gh has no -C, so cd. </dev/null because gh prompts if it thinks it has
-        -- a terminal, and a child blocked for its alarm(60) is worse than a
-        -- missing colour.
+        -- gh has no -C, so cd; </dev/null stops gh prompting when it thinks it has a terminal.
         sbar.exec(string.format(
             "cd %s && gh run list --branch %s --limit 1 --json status,conclusion,databaseId </dev/null 2>/dev/null",
             ctx.shell_quote(root), ctx.shell_quote(branch)), function(out)
-            -- Array/object stdout arrives already parsed into a table. gh prints
-            -- nothing at all when there is no GitHub remote, no run on this
-            -- branch, or no credentials, and none may inherit the last colour.
+            -- JSON array/object stdout arrives parsed into a lua table. gh prints
+            -- nothing at all with no remote, no run on this branch, or no credentials.
             local run = type(out) == "table" and out[1] or nil
             local status = type(run) == "table" and run.status or nil
             if type(status) ~= "string" then
@@ -339,8 +298,7 @@ return function(ctx)
                 fill()
                 return ci:set({ drawing = false, update_freq = 300 })
             end
-            -- `gh run view --web` refuses without an id when not interactive, so
-            -- the row is only clickable once we have one.
+            -- gh run view --web refuses without an id when non-interactive.
             ci_run = tonumber(run.databaseId)
             local conclusion = type(run.conclusion) == "string" and run.conclusion or nil
             local running = status ~= "completed"
@@ -348,7 +306,6 @@ return function(ctx)
             fill()
             ci:set({
                 drawing = true,
-                -- Only spin the timer while a run is actually in flight.
                 update_freq = running and 60 or 300,
                 icon = { color = running and p.warn or (VERDICT[conclusion] or p.bad) },
             })
@@ -360,27 +317,22 @@ return function(ctx)
         local key = string.format("%s\n%s", root or "", branch or "")
         if key == ci_key then return end
         ci_key = key
-        -- A verdict belongs to one repo+branch; carrying the colour across a
-        -- switch would show the last repo's result beside the new name. Poll
-        -- faster until the new one has an answer, in case the burst guard
-        -- swallowed this fetch.
+        -- A verdict belongs to one repo+branch, so clear the dot on switch; poll
+        -- faster until the new answer lands in case the burst guard swallowed this fetch.
         ci:set({ drawing = false, update_freq = 60 })
         ci_fetch()
     end
 
-    -- Checked against sketchybar's own event table: repo_cwd is not one of the
-    -- built-in names, so triggers on it are delivered. A reserved name is
-    -- silently swallowed instead — that is why media uses media_update.
+    -- repo_cwd is not a reserved built-in event name; triggers on reserved names
+    -- (e.g. media_change) are silently swallowed.
     sbar.add("event", "repo_cwd")
 
     repo:subscribe({ "routine", "forced", "system_woke" }, refresh)
-    -- The dot keeps its own slower clock: the branch it reports on only changes
-    -- when the status read says so, and every tick of this one is a network call.
+    -- Every tick of the dot is a network call, so it keeps its own slower clock.
     if ci then ci:subscribe({ "routine", "forced", "system_woke" }, ci_fetch) end
 
-    -- No click_script: an item that has one never forwards mouse events to the
-    -- lua bridge, so mouse.exited.global would never fire and the popup would
-    -- stay open until clicked again.
+    -- No click_script: an item with one never forwards mouse events, so
+    -- mouse.exited.global would never fire and the popup would stay open.
     repo:subscribe("mouse.clicked", function()
         repo:set({ popup = { drawing = "toggle" } })
         refresh()
@@ -397,15 +349,13 @@ return function(ctx)
                 seen_cwd, seen_at = cwd, os.time()
                 return poll(cwd)
             end
-            -- Same directory, prompt fired again (a commit, a build). precmd
-            -- fires on every bare Enter, hence the floor.
+            -- Same directory again: precmd fires on every bare Enter, hence the floor.
             if os.time() - seen_at < 1 then return end
             seen_at = os.time()
             poll(cwd)
         end)
     end
 
-    -- Routine is up to update_freq away, so a pinned repo would otherwise sit
-    -- on "—" after every reload.
+    -- Routine is up to update_freq away; a pinned repo would sit on "—" after reload.
     if pinned then poll(pinned) end
 end

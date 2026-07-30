@@ -50,10 +50,8 @@ return {
 
     volume   = { enabled = true },
 
-    -- Sonar needs a copy of your audio, which means routing output through a
-    -- multi-output aggregate (device + BlackHole). macOS gives aggregates no
-    -- hardware volume, so the F-row volume keys stop working while it is on —
-    -- the bar's own volume chip (click/scroll) keeps working either way.
+    -- cava can only listen to an INPUT, hence routing output through <device +
+    -- BlackHole>; that aggregate has no hardware volume, hence volume_keys.
     audio = {
         auto_route = true,   -- route through <device + BlackHole> so sonar hears music
         volume_keys = true,  -- required while auto_route is on: see the note above
@@ -83,8 +81,8 @@ return {
     --   hosts = { "alias", ... }    -- explicit list instead of discovery
     servers = { enabled = true },
 
-    -- Follows whichever repo your shell is in, via the chpwd/precmd hook in
-    -- .zshrc. Set `path` to pin it to one repo and ignore the hook instead.
+    -- Follows your shell's repo via the chpwd/precmd hook in .zshrc — nothing
+    -- outside the shell can tell which pane has focus. Set `path` to pin one repo.
     repo = {
         enabled = true,          -- repo · branch · dirty count · CI dot
         ci = true,               -- needs the gh CLI, authenticated

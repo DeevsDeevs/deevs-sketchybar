@@ -1,8 +1,7 @@
 #!/usr/bin/env bash
 
 # Streams now-playing changes into the custom sketchybar event "media_update".
-# Artwork is decoded here and handed to lua as a file path only: pushing a few
-# hundred KB of base64 through the lua<->sketchybar Mach bridge deadlocks it.
+# Artwork goes to lua as a file path: base64 over the Mach bridge deadlocks it.
 
 set -u
 export PATH="/usr/bin:/bin:/opt/homebrew/bin:$PATH"
@@ -11,13 +10,11 @@ export PATH="/usr/bin:/bin:/opt/homebrew/bin:$PATH"
 readonly ART_DIR="${TMPDIR:-$HOME/.cache}"
 readonly ART="${ART_DIR%/}/sketchybar_album_art.jpg"
 
-# The initial full-state line arrives instantly; wait for sketchybar to finish
-# loading the lua config and registering subscriptions before the first trigger.
+# Let the lua config finish registering subscriptions before the first trigger.
 sleep 5
 
 media-control stream 2>/dev/null | while IFS= read -r line; do
-  # Without this the bar's death leaves this loop and its media-control
-  # subscriber orphaned on launchd, holding a live MediaRemote subscription.
+  # Die with the bar, or this loop stays orphaned holding a MediaRemote subscription.
   pgrep -x sketchybar >/dev/null 2>&1 || exit 0
 
   payload="$(jq -c 'select(.type == "data") | .payload // {}' <<<"$line" 2>/dev/null)" || continue
@@ -28,16 +25,13 @@ media-control stream 2>/dev/null | while IFS= read -r line; do
     printf '%s' "$art" | base64 -d >"$ART.tmp" 2>/dev/null && sips -Z 128 "$ART.tmp" >/dev/null 2>&1 && mv -f "$ART.tmp" "$ART"
   fi
 
-  # Strip artworkData before merging. Carried in $state it makes every read
-  # below re-parse a few hundred KB of base64 per stream line — the very payload
-  # cost this helper exists to keep off the bridge.
+  # Keep artworkData out of $state: every jq read below re-parses it otherwise.
   if [[ "$(jq -r '.diff // false' <<<"$line")" == "true" ]]; then
     state="$(jq -c --argjson patch "$payload" '(. * $patch) | del(.artworkData)' <<<"${state:-{\}}")"
   else
     state="$(jq -c 'del(.artworkData)' <<<"$payload")"
   fi
 
-  # One jq pass for the whole record rather than six herestrings.
   IFS=$'\t' read -r playing title artist app <<<"$(
     jq -r '[(.playing // false), (.title // ""), (.artist // ""), (.bundleIdentifier // "")] | @tsv' <<<"$state"
   )"
@@ -45,11 +39,8 @@ media-control stream 2>/dev/null | while IFS= read -r line; do
   track="$title	$artist	$app"
   sig="$playing	$track"
 
-  # Remember which track the file on disk belongs to. Without this a track that
-  # carries no artwork of its own — a local file, most podcasts — still found the
-  # previous track's image sitting there and showed it as its own, and the widget
-  # then cached that as correct. TMPDIR survives reboots, so this also covers the
-  # first play after a restart.
+  # Remember which track owns the on-disk art: a track without artwork must not
+  # inherit the previous image (TMPDIR survives reboots).
   [[ -n "$art" ]] && art_owner="$track"
 
   if [[ "$sig" != "${last_sig:-}" || -n "$art" ]]; then

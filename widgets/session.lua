@@ -1,24 +1,16 @@
--- Session.app pomodoro. helpers/session_stream.sh pushes state in as
--- session_update events; it reads the live block from Session's preferences,
--- since the sqlite only gets a task row once a block finishes and so can never
--- see what is running now.
--- Controls via session:/// deep links. No alias — with the native menubar
--- hidden, aliases capture a blank region.
---
--- Layout mirrors the media cluster: a pie icon that fills as the session
--- burns down, and a two-line stack of countdown over intent name. The stack
--- is the zero-width overlay trick used by the network rows.
+-- Session.app pomodoro: helpers/session_stream.sh pushes session_update events
+-- (from prefs — the sqlite only gets a row once a block finishes). Controls via
+-- session:/// deep links; no alias, since a hidden menubar aliases as a blank region.
 return function(ctx)
     local p = ctx.palette
 
-    -- 0/8 … 8/8 — progress lives in the icon, since sketchybar can't draw a
-    -- background under a chip (background.clip only applies to images, and a
-    -- slider always claims its own slot however narrow the item is).
+    -- 0/8 … 8/8 pie glyphs: background.clip only applies to images and a
+    -- slider always claims its own slot, so progress lives in the icon.
     local PIE = { "󰝦", "󰪞", "󰪟", "󰪠", "󰪡", "󰪢", "󰪣", "󰪤", "󰪥" }
     local STACK_W = 72   -- fits a 14-char intent at 8pt
 
-    -- Countdown first and zero-width so the name below governs the width;
-    -- the icon is created last so it lands to the left of the stack.
+    -- Right items lay out right-to-left in creation order: stack first,
+    -- icon last so it lands to the left.
     local time = sbar.add("item", "session.time", {
         position = "right",
         width = 0,
@@ -28,8 +20,7 @@ return function(ctx)
         label = {
             string = "--:--",
             font = { family = ctx.settings.font.numbers, size = 10.5 },
-            -- Both lines share a fixed left-aligned box so they stack flush and
-            -- the chip keeps its width when the intent changes.
+            -- Both labels need the SAME fixed width to stack on one box.
             width = STACK_W,
             align = "left",
             padding_left = 0,
@@ -59,9 +50,8 @@ return function(ctx)
         icon = { string = PIE[1], color = p.accent, font = { size = 14.0 }, padding_right = 5 },
         label = { drawing = false },
         update_freq = 1,
-        -- Must keep ticking while hidden: the default when_shown stops routine
-        -- events for an undrawn item, so an idle chip would never redraw when
-        -- the next block starts.
+        -- updates defaults to when_shown: an undrawn item gets no routine or
+        -- forced events and could never turn itself back on.
         updates = true,
         popup = { align = "center", horizontal = true },
     })
@@ -94,8 +84,7 @@ return function(ctx)
             click_script = "open " .. ctx.shell_quote(action.link) .. close,
         })
     end
-    -- Stays hidden until it holds real numbers: a placeholder in a row of
-    -- icons just reads as a glitch.
+    -- Hidden until it holds real numbers.
     local stats = sbar.add("item", {
         position = "popup." .. icon.name,
         drawing = false,
@@ -111,11 +100,8 @@ return function(ctx)
     local deadline, total, kind = nil, nil, nil
     local absent = false
 
-    -- Hovering reveals the whole intent. The box stays the same width and the
-    -- text slides inside it, rather than the chip widening and shoving every
-    -- chip to its left along with it. Same mechanism as the media title:
-    -- sketchybar's scroll_texts does not move text, but a label clips to its
-    -- width, so animating its left padding negative walks the rest into view.
+    -- Hover marquees the full intent inside the fixed box (scroll_texts does
+    -- not move text; animating the clipped label's padding_left does).
     local intent, hovering, slide_out = "", false, false
 
     local function name_px(value)
@@ -137,8 +123,7 @@ return function(ctx)
         end)
     end
 
-    -- max_chars is dropped while hovering, or the marquee would only ever walk
-    -- across the truncated 14 characters.
+    -- Drop max_chars while hovering, or the marquee only walks the truncated 14 chars.
     local function hover(on)
         if on == hovering then return end
         hovering = on
@@ -147,13 +132,10 @@ return function(ctx)
         slide_step()
     end
 
-    -- Three states: running (ring + countdown + intent), idle (an empty ring
-    -- you can still click to start something), and absent — the chip only
-    -- disappears when Session itself isn't installed.
+    -- States: running, idle (clickable empty ring), absent (Session not installed).
     local function show(state)
         local present = state ~= "absent"
-        -- Undrawn items never deliver mouse.exited, so hover would latch on and
-        -- the next block would render mid-marquee with no pointer near it.
+        -- Undrawn items never deliver mouse.exited, so hover would latch on.
         if state ~= "running" then hover(false) end
         icon:set({ drawing = present })
         bracket:set({ drawing = present })
@@ -165,12 +147,9 @@ return function(ctx)
         if not present then icon:set({ popup = { drawing = false } }) end
     end
 
-    -- Runs every second off the cached deadline, so the countdown is smooth
-    -- between the coarser resyncs the stream sends.
+    -- 1s tick off the cached deadline smooths between the stream's coarser resyncs.
     local function tick()
-        -- `absent` has to be sticky: tick() runs every second and would
-        -- otherwise re-show the chip one second after the stream hid it,
-        -- blinking forever on machines without Session.
+        -- Sticky, or the 1s tick re-shows the chip on machines without Session.
         if absent then return end
         if not deadline then return show("idle") end
         local left = deadline - os.time()
@@ -180,8 +159,7 @@ return function(ctx)
         end
         local done = total and total > 0 and (1 - left / total) or 0
         local accent = kind == "rest" and p.accent2 or p.accent
-        -- Focus blocks here regularly run past an hour, so plain mm:ss would
-        -- read as "119:05"; the h marker keeps the two forms distinct.
+        -- Blocks run past an hour; the h marker avoids "119:05".
         local str = left >= 3600
             and string.format("%dh%02d", left // 3600, (left % 3600) // 60)
             or string.format("%d:%02d", left // 60, left % 60)
@@ -190,9 +168,7 @@ return function(ctx)
         show("running")
     end
 
-    -- State arrives from helpers/session_stream.sh as session_update events.
-    -- Nothing here pulls: sbar.exec callbacks stop arriving after a few minutes
-    -- of polling, which froze the chip on whatever it last saw.
+    -- Push, never poll: sbar.exec callbacks stop arriving after a few minutes of polling.
     local function apply(env)
         if env.STATE == "absent" then
             deadline, total, kind, absent = nil, nil, nil, true
@@ -213,8 +189,7 @@ return function(ctx)
         end
         deadline = os.time() + (tonumber(env.LEFT) or 0)
         total, kind = tonumber(env.TOTAL), env.KIND
-        -- Keep the untruncated intent: it is what the marquee walks through, and
-        -- max_chars only governs what the collapsed chip shows.
+        -- Untruncated: the marquee walks this; max_chars only governs the collapsed chip.
         intent = (env.TITLE ~= "" and env.TITLE) or "focus"
         if hovering then
             name:set({ label = { max_chars = 0, string = intent } })
@@ -239,7 +214,7 @@ return function(ctx)
         icon:set({ popup = { drawing = "toggle" } })
     end
 
-    -- One leg of the marquee per tick, only while the pointer is on the chip.
+    -- One marquee leg per tick.
     name:subscribe("routine", function()
         if hovering then slide_step() end
     end)

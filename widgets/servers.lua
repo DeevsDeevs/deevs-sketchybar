@@ -1,9 +1,5 @@
--- Enumerate the Host aliases. Kept separate from resolution because `ssh -G`
--- follows Include for the host it is asked about but cannot list what exists,
--- and a top-level-only scan silently misses whole files (Include
--- ~/.orbstack/ssh/config is a common one). Relative Include paths glob against
--- ~/.ssh, which is what ssh itself does. `Host=alias` is as legal as
--- `Host alias`, hence the `=` fixup.
+-- Enumerate Host aliases: `ssh -G` cannot list what exists, so Include'd files
+-- (relative paths glob against ~/.ssh) are scanned too; `Host=alias` is legal, hence the `=` fixup.
 local DISCOVER = [[cd "$HOME/.ssh" 2>/dev/null || exit 0
 [ -r config ] || exit 0
 K='{ l=$0; sub(/^[ \t]+/,"",l); if (l ~ /^[A-Za-z]+=/) sub(/=/," ",l); n=split(l,f);
@@ -11,14 +7,8 @@ K='{ l=$0; sub(/^[ \t]+/,"",l); if (l ~ /^[A-Za-z]+=/) sub(/=/," ",l); n=split(l
        if (k=="include") sub(/^~\//,ENVIRON["HOME"] "/",v); print v } }'
 awk -v k=host "$K" config $(awk -v k=include "$K" config) 2>/dev/null]]
 
--- `ssh -G` is pure config resolution: it applies Match blocks, follows Include
--- and trims the stray whitespace people leave after a HostName, without opening
--- a socket (measured at 25ms per alias, no network). Resolving concurrently
--- keeps a forty-host config off the critical path at load.
--- proxyjump/proxycommand are absent from the output rather than empty when
--- unset, so their mere presence marks a host as reachable only through a jump —
--- and a direct probe of such a host's private address is a permanent red dot
--- that says nothing, so those are dropped instead of guessed at.
+-- `ssh -G` resolves config only, no socket; run concurrently to keep load fast.
+-- Presence of proxyjump/proxycommand marks a jump-only host: drop it, probing its private address is meaningless.
 local RESOLVE = [[ | awk '!s[$0]++' | { n=0
 while IFS= read -r a; do
   case $a in ''|*[*?]*) continue ;; esac
@@ -36,11 +26,8 @@ return function(ctx)
     local cfg = ctx.config.servers or {}
     local idle = ctx.with_alpha(p.fg, 0.25)
 
-    -- Precedence: an explicit `hosts` list of aliases replaces discovery
-    -- outright, else every non-wildcard alias in the ssh config, narrowed by
-    -- `filter`. Only strings count as aliases, so the older
-    -- `hosts = { { name, host } }` schema falls through to discovery rather than
-    -- shell-quoting a table address into a dot.
+    -- Explicit `hosts` replaces discovery. Only strings count, so the old
+    -- `hosts = { { name, host } }` schema falls through to discovery instead of quoting a table address.
     local quoted = {}
     for _, alias in ipairs(type(cfg.hosts) == "table" and cfg.hosts or {}) do
         if type(alias) == "string" and alias ~= "" then
@@ -52,9 +39,7 @@ return function(ctx)
         source, filter = "printf '%s\\n' " .. table.concat(quoted, " "), nil
     end
 
-    -- Read synchronously: the number of dots is decided here, and the bracket
-    -- around them is built the moment this function returns, so there is no
-    -- later point at which an async reply could still add items.
+    -- Synchronous: the bracket is built the moment this returns, so an async reply could not add dots later.
     local hosts = {}
     local pipe = io.popen(source .. RESOLVE, "r")
     if pipe then
@@ -62,8 +47,7 @@ return function(ctx)
             local alias, host, port = line:match("^%d+\t([^\t]+)\t([^\t]+)\t(%d+)$")
             local keep = alias ~= nil
             if keep and filter then
-                -- A bad pattern in config.lua would otherwise abort the config
-                -- load here and take every later widget down with it.
+                -- pcall: a bad `filter` pattern must not abort the whole config load.
                 local ok, found = pcall(string.find, alias, filter)
                 keep = ok and found ~= nil
             end
@@ -75,8 +59,7 @@ return function(ctx)
     end
     if #hosts == 0 then return end
 
-    -- Right-position items lay out right-to-left in creation order, so the dots
-    -- go in reverse and the icon last to end up leftmost.
+    -- Right-position items lay out right-to-left in creation order: dots reversed, icon last to sit leftmost.
     local dots, rows = {}, {}
     for i = #hosts, 1, -1 do
         dots[i] = sbar.add("item", "widgets.servers.dot." .. i, {
@@ -100,18 +83,12 @@ return function(ctx)
     table.insert(ctx.groups.right, servers.name)
     ctx.cluster("servers", servers.name)
 
-    -- JetBrainsMono advances 0.6em, so a name costs 7.8px per character at the
-    -- popup's 13px icon size. Aliases are the long part of an ssh config
-    -- (deevs.hetzner.whitecircle is 25 characters, 203px) and a clipped name
-    -- defeats the only thing the popup is here to say.
+    -- JetBrainsMono advances ~7.8px/char at 13px; size to the longest alias so names never clip.
     local longest = 0
     for _, h in ipairs(hosts) do longest = math.max(longest, #h.alias) end
     local name_width = math.max(90, math.ceil(longest * 7.8) + 8)
 
-    -- The alias, not the resolved hostname: it is what the user types and what
-    -- their ssh config is organised by. The hostname is deliberately left out —
-    -- one of these resolves to a 48-character EC2 name and would triple the
-    -- popup width to restate what the alias already identifies.
+    -- Alias only, never the resolved hostname: a 48-char EC2 name would triple the popup width.
     for i, h in ipairs(hosts) do
         rows[i] = sbar.add("item", "widgets.servers.row." .. i, {
             position = "popup." .. servers.name,
@@ -120,18 +97,11 @@ return function(ctx)
         })
     end
 
-    -- Probes run concurrently. Sequentially, N hosts behind a firewall cost
-    -- 3s each, and SbarLua puts alarm(60) on the child it forks for an exec —
-    -- past 60s of sweep the child is killed and the callback never fires at
-    -- all, so the dots would freeze rather than go stale visibly. In parallel
-    -- the sweep costs one timeout no matter how long the fleet is.
-    -- Each line carries its host index because concurrent probes finish in any
-    -- order.
+    -- Parallel probes: SbarLua's exec child carries alarm(60) — a sequential sweep past 60s is
+    -- killed and the callback never fires. Each line carries its host index since replies finish in any order.
     local probes = {}
     for i, h in ipairs(hosts) do
-        -- Only -G bounds the connect. -w is documented as a timeout but does
-        -- not apply to -z's connect: `nc -z -w 3` against a black-holed
-        -- address takes 75s, `nc -z -G 3` takes 3s.
+        -- Only -G bounds the connect: `nc -z -w 3` against a black-holed address takes 75s.
         probes[i] = "( nc -z -G 3 " .. ctx.shell_quote(h.addr) .. " " .. h.port
             .. " >/dev/null 2>&1 && echo '" .. i .. " 1' || echo '" .. i .. " 0' ) &"
     end
@@ -145,11 +115,8 @@ return function(ctx)
 
     local function apply(out)
         local seen = {}
-        -- Matched line by line and anchored at both ends, so anything that is
-        -- not exactly "<index> <0|1>" is dropped instead of being counted as a
-        -- state. A loose scan for [01] shifts every host after any stray digit,
-        -- and the exec response reaches lua without a terminator, so a garbage
-        -- tail on the last line is a real possibility.
+        -- Anchored per-line match: the exec response reaches lua un-NUL-terminated,
+        -- so the tail can carry garbage that a loose scan would count as state.
         for line in tostring(out):gmatch("[^\n]+") do
             local index, state = line:match("^(%d+) ([01])$")
             local i = index and tonumber(index)
@@ -158,8 +125,7 @@ return function(ctx)
                 paint(i, state == "1")
             end
         end
-        -- A host whose line went missing reverts to unknown. Holding the last
-        -- sweep's colour would report a stale up as current.
+        -- A missing line reverts to unknown rather than holding a stale colour.
         for i = 1, #hosts do
             if not seen[i] then
                 dots[i]:set({ icon = { color = idle } })
@@ -171,8 +137,7 @@ return function(ctx)
     local function refresh() sbar.exec(probe, apply) end
 
     servers:subscribe({ "routine", "forced", "system_woke" }, refresh)
-    -- routine does not fire until update_freq has elapsed, which would leave
-    -- every dot unknown for the first minute after a reload.
+    -- routine first fires only after update_freq; prime immediately.
     refresh()
 
     servers:subscribe("mouse.clicked", function()

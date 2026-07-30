@@ -16,22 +16,18 @@ return function(ctx)
         icon = { drawing = false },
         label = { string = "··", font = { style = "Bold", size = 10.5 }, color = ctx.with_alpha(p.fg, 0.8) },
         update_freq = 2,
-        -- Not the legacy Keyboard.prefPane path: on macOS 15 that still exists but
-        -- opens System Settings on General; this URL lands on the Keyboard pane.
+        -- The legacy Keyboard.prefPane URL opens on General; this one lands on Keyboard.
         click_script = "open 'x-apple.systempreferences:com.apple.Keyboard-Settings.extension'",
     })
     table.insert(ctx.groups.right, lang.name)
     ctx.cluster("status", lang.name)
 
     local function render()
-        -- Layout changes emit no event reachable from here (the TIS notification
-        -- needs a native observer), so poll. A fresh `defaults read` reflects a
-        -- switch within ~0.1s, so the interval is the only lag.
+        -- No layout-change event reachable from here (TIS needs a native observer), so poll.
         sbar.exec("defaults read com.apple.HIToolbox AppleCurrentKeyboardLayoutInputSourceID 2>/dev/null", function(out)
             local id = short_id(out)
             if not id then return end
-            -- %w matches ASCII only, so id can never carry multibyte and the
-            -- byte-wise sub/upper are safe.
+            -- %w is ASCII-only, so byte-wise sub/upper is safe.
             lang:set({ label = names[id] or id:sub(1, 2):upper() })
         end)
     end

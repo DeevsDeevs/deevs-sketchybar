@@ -1,6 +1,5 @@
--- herdr: your agent fleet across local + SSH hosts.
--- Chip: ✳ + working count, red badge treatment when any agent is blocked.
--- Popup: agents grouped needs-you → working → resting; click a row to focus.
+-- herdr: agent fleet across local + SSH hosts. Chip shows working/blocked
+-- counts; popup lists agents grouped by status, click a row to focus.
 return function(ctx)
     local p = ctx.palette
     -- `herdr = true` and an omitted host list both mean "just this machine".
@@ -8,8 +7,7 @@ return function(ctx)
     local hosts = conf.hosts or { { name = "local" } }
     local fleet = {} -- host -> agents list
 
-    -- Terminal titles are arbitrary text: truncate by codepoint, or a byte sub
-    -- cuts a multibyte character in half and renders a replacement glyph.
+    -- Truncate by codepoint: a byte sub can cut a multibyte character in half.
     local function clip(value, limit)
         local str = tostring(value or "")
         local cut = utf8.offset(str, limit + 1)
@@ -27,9 +25,7 @@ return function(ctx)
     table.insert(ctx.groups.right, chip.name)
     local backdrop = ctx.chip("herdr.chip", { chip.name })
 
-    -- ConnectTimeout bounds only the handshake, so a host that connects and then
-    -- stalls in `herdr agent list` would hang forever; ServerAlive gives the
-    -- established session its own deadline.
+    -- ConnectTimeout bounds only the handshake; ServerAlive deadlines the established session.
     local function host_cmd(host)
         if host.ssh then
             return "ssh -o BatchMode=yes -o ConnectTimeout=2"
@@ -109,8 +105,7 @@ return function(ctx)
         end
     end
 
-    -- Redraw on every reply, never on round completion: a dropped callback or a
-    -- hung SSH host must not be able to freeze the chip.
+    -- Redraw per reply: a dropped callback or hung SSH host must not freeze the chip.
     local function poll()
         for _, host in ipairs(hosts) do
             sbar.exec(host_cmd(host), function(result)

@@ -23,10 +23,8 @@ detect_from_default_route() {
   route -n get default 2>/dev/null | awk '/interface:/{print $2; exit}'
 }
 
-# Default route first: it names the interface actually carrying traffic, and
-# costs milliseconds. The SSID scan returns any associated Wi-Fi card even when
-# the machine is docked on Ethernet, and the SPAirPortDataType probe blocks for
-# seconds — widgets/system.lua reads this synchronously during config load.
+# Default route first (fast, names the live interface): the SSID scan matches a
+# docked Wi-Fi card, and SPAirPortDataType blocks for seconds during config load.
 iface="$(detect_from_default_route || true)"
 if [[ -z "$iface" ]]; then
   iface="$(detect_from_summary || true)"

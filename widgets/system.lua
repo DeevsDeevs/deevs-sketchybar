@@ -49,9 +49,7 @@ return function(ctx)
     })
     local cpu = sbar.add("graph", "system.cpu", 36, {
         position = "right",
-        -- an unset fill_color is opaque light grey: the sparkline renders as a
-        -- solid slab. Tint it from the line colour and thicken the line so the
-        -- curve reads on top of its own fill.
+        -- an unset fill_color is opaque light grey (a solid slab); tint it from the line colour
         graph = { color = p.accent, fill_color = ctx.with_alpha(p.accent, 0.15), line_width = 1.0 },
         background = { height = 22, color = p.transparent, drawing = true },
         icon = { drawing = false },
@@ -91,11 +89,8 @@ return function(ctx)
     if iface == "" then iface = "en0" end
     sbar.exec("killall network_load >/dev/null 2>&1; "
         .. ctx.detached(ctx.shell_quote(net_bin) .. " " .. ctx.shell_quote(iface) .. " network_update 2.0"))
-    -- The provider emits "%03d" plus a space-padded unit ("001KBps"). Trim both
-    -- to match the ram value's shape (13G), then pad the number back out: the
-    -- up row is a zero-width overlay on the down row, so the two only stay
-    -- aligned while they render the same width — which holds because the
-    -- numbers font is monospaced.
+    -- Fixed-width rates: the zero-width up row overlays the down row, and they
+    -- only stay aligned because the numbers font is monospaced.
     local unit = { [" Bps"] = "B", ["KBps"] = "K", ["MBps"] = "M" }
     local function rate(raw)
         local n, u = tostring(raw or ""):match("^(%d+)(.*)$")
@@ -108,9 +103,7 @@ return function(ctx)
         net_down:set({ label = "↓ " .. rate(env.download) })
     end)
 
-    -- ram: cheap vm_stat poll. The compressor line is "Pages occupied by
-    -- compressor" — matching "Pages compressed" silently matched nothing and
-    -- under-reported by roughly half whenever memory was under pressure.
+    -- ram: vm_stat poll. The field is "Pages occupied by compressor", not "Pages compressed".
     ram:subscribe({ "routine", "forced" }, function()
         sbar.exec([[vm_stat | awk '/page size/{gsub(/[^0-9]/,"",$8); ps=$8} /Pages active/{a=$3} /Pages wired/{w=$4} /occupied by compressor/{c=$5} END{printf "%.0f", (a+w+c)*ps/1073741824}']],
             function(gb)

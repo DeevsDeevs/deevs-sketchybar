@@ -1,19 +1,16 @@
--- Now playing via helpers/media_stream.sh (event-driven, artwork as file path —
--- never push big payloads through the lua bridge). Optional cava sonar.
--- NOTE: "media_change" is a RESERVED sketchybar event name; we use media_update.
+-- Now playing via helpers/media_stream.sh (artwork as file path); optional cava sonar.
+-- "media_change" is a RESERVED sketchybar event name — triggers on it are
+-- silently swallowed, hence media_update.
 return function(ctx)
     local p, c = ctx.palette, ctx.config
-    -- Tolerate `media = true` and a media block with keys left out: every
-    -- lookup below has to survive the minimal config the README suggests.
     local media = type(c.media) == "table" and c.media or {}
     local whitelist = media.whitelist or {
         ["com.spotify.client"] = true,
         ["com.apple.Music"] = true,
     }
 
-    -- Must search the same PATH sonar.sh pins, or a devbox/nix cava is
-    -- invisible here (launchd hands sketchybar a bare PATH) and the EQ items
-    -- are never created even though the helper would have found it.
+    -- Must search the same PATH sonar.sh pins: launchd hands sketchybar a bare
+    -- PATH, so a devbox/nix cava is invisible without it.
     local function has_cava()
         local f = io.popen("PATH=/usr/bin:/bin:/opt/homebrew/bin:$HOME/.local/share/devbox/global/default/.devbox/nix/profile/default/bin:$PATH"
             .. " command -v cava 2>/dev/null")
@@ -22,8 +19,7 @@ return function(ctx)
         return out ~= ""
     end
 
-    -- Fixed box, scrolling contents: sizing it to the title let a long one
-    -- expand leftwards far enough to run under the notch.
+    -- Fixed box: sizing to the title let long ones run under the notch.
     local TEXT_W = media.text_width or 150
 
     -- Clip by codepoint: a byte sub cuts an accented name mid-character.
@@ -62,10 +58,8 @@ return function(ctx)
         end
     end
 
-    -- Right-position items lay out right-to-left in creation order, so the
-    -- cover is created BEFORE the text it reveals: the hover expansion has to
-    -- grow away from the cover. With the cover left of the text it gets pushed
-    -- out from under the cursor mid-expand and enter/exit oscillate.
+    -- Right-position items lay out right-to-left in creation order: cover first,
+    -- so the hover expansion grows away from it (else enter/exit oscillate).
     if media.cover then
         cover = sbar.add("item", "media.cover", {
             position = "right",
@@ -80,17 +74,8 @@ return function(ctx)
         table.insert(ctx.groups.right, cover.name)
     end
 
-    -- Two-line stack: artist above, title below. They land on the same box only
-    -- because both labels carry the SAME fixed width — item width = 0 does not
-    -- collapse the artist, it just parks it beside the title at a different
-    -- height, which reads as two ragged lines.
-    --
-    -- Alignment is per line and depends on whether the text fits: one that fits
-    -- is right-aligned so it sits against the cover instead of being stranded
-    -- at the far edge of the box, and one that does not is left-aligned and
-    -- marqueed (see slide). sketchybar's own scroll_texts does not move the
-    -- text — verified with a 62-char label in a 150px box, zero pixels of
-    -- movement over six seconds, item and bar property alike.
+    -- Two-line stack: the lines share one box only because both labels carry
+    -- the SAME fixed width — item width = 0 does not collapse an item.
     local function line(name, opts)
         local item = sbar.add("item", name, {
             position = "right",
@@ -126,9 +111,8 @@ return function(ctx)
     })
     local title = line("media.title", { size = 11, y = -5, pad = 10, color = p.fg })
 
-    -- Marquee: the label clips to its fixed width, so animating its left padding
-    -- negative slides the rest of the title into view and back again. Runs only
-    -- while the text is expanded and genuinely too long to fit.
+    -- Marquee: scroll_texts does not move text; the label clips to its fixed
+    -- width, so animating padding_left negative slides the rest into view.
     local overflow = 0
     local slide_out = false
 
@@ -140,9 +124,7 @@ return function(ctx)
     local function slide_step()
         if overflow <= 0 then return slide_reset() end
         slide_out = not slide_out
-        -- Frames scale with the distance so the glide holds a steady speed
-        -- whatever the title's length, capped to finish inside the tick that
-        -- started it. "sin" eases both ends; "linear" set off and stopped dead.
+        -- Frames scale with distance for a steady glide, capped to fit the tick.
         local frames = math.max(70, math.min(160, math.floor(overflow * 2.6)))
         sbar.animate("sin", frames, function()
             title:set({ label = { padding_left = slide_out and -overflow or 0 } })
@@ -165,9 +147,8 @@ return function(ctx)
             })
         end
 
-        -- Plain boolean rather than a counter: the cover stops drawing when
-        -- playback stops, and a hidden item never delivers the matching
-        -- mouse.exited, so a counter latches and the text stays expanded.
+        -- Boolean, not a counter: a hidden item never delivers mouse.exited,
+        -- so a counter latches and the text stays expanded.
         local expanded = false
         animate_detail = function(detail)
             if detail == expanded then return end
@@ -183,8 +164,7 @@ return function(ctx)
             end)
         end
 
-        -- One leg of the marquee per tick; the slide itself takes ~1.5s of the
-        -- 3s window, leaving the ends readable.
+        -- One marquee leg per 3s tick; the slide takes ~1.5s, leaving the ends readable.
         title:set({ update_freq = 3 })
         title:subscribe("routine", function()
             if expanded then slide_step() end
@@ -203,11 +183,8 @@ return function(ctx)
         title:set({ label = { width = TEXT_W } })
     end
 
-    -- The slab covers only the always-on part. Including the hover text made
-    -- the bracket resize as the labels tweened, and a bracket recomputes its
-    -- extent in one step, so the glass visibly jumped out from under the sonar
-    -- while the text was still sliding. The text expands over the bar's own
-    -- glass instead.
+    -- Bracket covers only the always-on items: a bracket resizes in one step,
+    -- so including the tweening labels made the glass visibly jump.
     local members = {}
     for _, bar in ipairs(eq_bars or {}) do table.insert(members, bar.name) end
     if cover then table.insert(members, cover.name) end
@@ -216,13 +193,11 @@ return function(ctx)
     local anchor = cover or title
     local has_art = nil
     sbar.add("event", "media_update")
-    -- Dedicated event rather than system_woke, which six widgets subscribe to:
-    -- rerouting only moves cava's source, so the media stream must not be
-    -- bounced (and its startup wait paid) on every device pick.
+    -- Dedicated event: rerouting only restarts the sonar, never the media stream.
     sbar.add("event", "audio_route_changed")
 
-    -- media-control execs into a perl adapter, so a "media-control stream"
-    -- pattern matches nothing and every reload leaks a ~17MB subscriber.
+    -- media-control execs into a perl adapter; without the adapter pkill every
+    -- reload leaks a subscriber.
     local function start_stream()
         sbar.exec("pkill -f 'helpers/media_stream[.]sh' >/dev/null 2>&1;"
             .. " pkill -f 'mediaremote-adapte[r]' >/dev/null 2>&1; "
@@ -231,8 +206,7 @@ return function(ctx)
 
     local function start_sonar()
         if not eq_bars then return end
-        -- Scoped to our own config dir: a bare `cava` pattern would also kill
-        -- a cava the user is running in a terminal.
+        -- Scoped pattern: a bare `cava` would kill one the user runs in a terminal.
         sbar.exec("pkill -f 'helpers/sonar[.]sh' >/dev/null 2>&1;"
             .. " pkill -f 'sonar-cava[.]' >/dev/null 2>&1; "
             -- `env` rather than a bare VAR=… prefix: the detach wrapper execs.
@@ -258,6 +232,7 @@ return function(ctx)
         overflow = math.max(0, math.ceil(title_px - TEXT_W))
         slide_reset()
 
+        -- Per line: right-aligned when it fits so it sits against the cover, left when it marquees.
         artist:set({
             drawing = drawing,
             label = {
@@ -280,16 +255,12 @@ return function(ctx)
             has_art = nil
             return
         end
-        -- Artwork arrives in its own event a moment after the title changes, so
-        -- keying the image off the track left the previous song's cover on
-        -- screen until the next one. Re-set it exactly when the helper reports
-        -- new art — still never on every event, which is what stacked draw
-        -- layers into the "fanned covers" artifact.
+        -- Re-set the image only when the helper reports new art: setting it on
+        -- every event stacks draw layers ("fanned covers").
         cover:set({ drawing = true })
 
-        -- An empty ART_PATH means the helper has no artwork for THIS track, as
-        -- opposed to none yet: show a blank cover rather than inheriting the
-        -- previous song's.
+        -- Empty ART_PATH = no artwork for THIS track: blank the cover rather
+        -- than inheriting the previous song's.
         if env.ART_PATH == nil or env.ART_PATH == "" then
             if has_art then
                 cover:set({ background = { image = { drawing = false }, color = p.transparent } })

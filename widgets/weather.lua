@@ -1,24 +1,20 @@
 return function(ctx)
     local p = ctx.palette
     local cfg = ctx.config.weather or {}
-    -- With no `place` the machine's own location is used, so no city has to be
-    -- named in this repo's public config. `place` overrides it.
+    -- No `place` configured → the machine's own location; `place` overrides.
 
     local weather = sbar.add("item", "widgets.weather", {
         position = "right",
         icon = { string = "\u{f0595}", font = { size = 13.0 }, color = ctx.with_alpha(p.fg, 0.7) },
         label = { string = "--°", font = { family = ctx.settings.font.numbers }, color = ctx.with_alpha(p.fg, 0.7) },
-        -- 30s only until the first reading lands (fetch relaxes it to 900):
-        -- the bar routinely loads before wifi is up, and exec callbacks fired
-        -- during config can be lost, so the first routine tick has to arrive
-        -- soon enough to not look broken.
+        -- 30s until the first reading lands (fetch relaxes it to 900): the bar
+        -- loads before wifi is up, and exec callbacks fired during config can be lost.
         update_freq = 30,
     })
     table.insert(ctx.groups.right, weather.name)
     ctx.cluster("status", weather.name)
 
-    -- WMO code ranges, coarsened to the six glyphs that read at bar size.
-    -- 80-82 are rain showers; only 71-77 and 85/86 are snow.
+    -- WMO codes coarsened to six glyphs; 80-82 are rain showers, not snow.
     local function glyph(code)
         if code >= 95 then return "\u{f0593}" end                                -- thunder
         if code >= 85 or (code >= 71 and code <= 77) then return "\u{f0598}" end -- snow
@@ -28,20 +24,15 @@ return function(ctx)
         return "\u{f0599}"                                                       -- clear
     end
 
-    -- No jq: SbarLua parses JSON stdout and hands the callback a lua table, so a
-    -- pipe would only add a fork to reach the same fields. (macOS 15 does ship
-    -- /usr/bin/jq, so a bare PATH is not the reason.)
+    -- No jq: SbarLua parses JSON stdout into a lua table.
     local point
     local function fetch()
-        -- string.format from a single literal, never `..`: see the note on
-        -- ctx.shell_quote in core/init.lua. As a concatenation this url lost an
-        -- operand and curl was handed a query string with no scheme or host.
+        -- string.format, never `..`: concatenation can drop an operand here.
         sbar.exec(string.format(
             "curl -s --max-time 8 'https://api.open-meteo.com/v1/forecast?%s&current=temperature_2m,weather_code'",
             point), function(out)
             local current = type(out) == "table" and out.current
-            -- On failure keep the last reading: a stale temperature is more
-            -- truthful than "--°" flapping on every network blip.
+            -- On failure keep the last reading instead of flapping back to "--°".
             if not (current and current.temperature_2m and current.weather_code) then return end
             weather:set({
                 update_freq = 900,
@@ -51,8 +42,7 @@ return function(ctx)
         end)
     end
 
-    -- -G --data-urlencode, not string concatenation: place names have spaces in
-    -- them ("San Francisco") and a raw space makes the request URL invalid.
+    -- -G --data-urlencode: place names can have spaces.
     local function geocode()
         sbar.exec(string.format(
             "curl -s --max-time 8 -G 'https://geocoding-api.open-meteo.com/v1/search?count=1' --data-urlencode %s",
@@ -60,8 +50,7 @@ return function(ctx)
             if type(out) ~= "table" then return end
             local hit = out.results and out.results[1]
             if not (hit and hit.latitude) then
-                -- The API answered and doesn't know the place: a config typo,
-                -- so stop the 30s bootstrap instead of hammering it forever.
+                -- Unknown place (config typo): stop the 30s bootstrap.
                 return weather:set({ update_freq = 900 })
             end
             point = string.format("latitude=%s&longitude=%s", hit.latitude, hit.longitude)
@@ -69,9 +58,7 @@ return function(ctx)
         end)
     end
 
-    -- Resolving must stay retryable rather than one-shot at load: a laptop that
-    -- boots faster than wifi would otherwise never resolve its point and the
-    -- widget would be dead until the next config reload.
+    -- Retryable, not one-shot at load: a boot that beats wifi must still resolve later.
     local function render()
         if point then return fetch() end
         if cfg.place then return geocode() end

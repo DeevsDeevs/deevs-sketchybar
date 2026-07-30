@@ -26,20 +26,14 @@ function ctx.detached(command)
     return "( for fd in $(jot 253 3); do eval \"exec ${fd}>&-\" 2>/dev/null || true; done; exec </dev/null >/dev/null 2>&1 " .. command .. " ) &"
 end
 
--- string.format, never concatenation. Written as
---   return "'" .. tostring(value):gsub("'", "'\\''") .. "'"
--- this returned a bare '' for some inputs — the middle operand simply vanished —
--- and every caller then built a command with an empty argument, which fails
--- silently because sbar.exec only ever hands back stdout. Measured with a
--- 60-character path while a 53-character one was fine, so it is not reproducible
--- by inspection; the extra parens keep gsub's replacement count out of format.
+-- string.format, never concatenation: it can drop an operand here (bare '' for
+-- a 60-char path). The extra parens keep gsub's second return out of format.
 function ctx.shell_quote(value)
     return string.format("'%s'", (tostring(value):gsub("'", "'\\''")))
 end
 
--- Current coordinates as an Open-Meteo query fragment, or nil if Location
--- Services said no. Cached for the session: the fix is kilometre-accurate and
--- two widgets ask for it, so this runs the helper once rather than per caller.
+-- Coordinates as an Open-Meteo query fragment, or nil if Location Services
+-- said no. Cached for the session; two widgets ask.
 local located
 function ctx.locate(done)
     if located then return done(located) end
@@ -52,24 +46,18 @@ function ctx.locate(done)
     end)
 end
 
--- The rounded slab behind a cluster of items. Every widget draws its
--- background through this so the bar keeps one rhythm instead of some chips
--- having a slab and some floating bare; `chips = false` drops them all.
--- Returns a stub rather than nil when off, so callers can still :set() it.
+-- Rounded slab behind a cluster of items. With chips = false, ctx.chip returns
+-- this stub rather than nil so callers can still :set() it.
 local no_chip = { set = function() end }
 
--- Join a shared chip instead of claiming your own. The small status widgets
--- use this so they land under one slab rather than a row of separate pills.
+-- Join a shared chip instead of claiming your own.
 function ctx.cluster(name, item)
     ctx.clusters[name] = ctx.clusters[name] or {}
     table.insert(ctx.clusters[name], item)
 end
 
--- Blank fixed-width item used to separate chips. A bracket's own padding grows
--- its extent by the same amount it insets the background, so the slab always
--- ends up hugging its contents and neighbouring chips touch no matter what is
--- set on them. An item that belongs to neither bracket is the only thing that
--- reliably keeps them apart.
+-- Blank spacer between chips: a bracket's padding IS its background inset, so
+-- a bracket can never be inset from its own contents — only a foreign item separates them.
 local gaps = 0
 
 function ctx.gap(width)
@@ -84,15 +72,12 @@ function ctx.gap(width)
         label = { drawing = false },
         background = { drawing = false },
     })
-    -- Joins the group so the islands structure includes it in the pod; left out,
-    -- the pod is built around the spacer rather than across it.
+    -- In the group so the islands pod spans the spacer.
     table.insert(ctx.groups.right, item.name)
     return item.name
 end
 
--- Drop a spacer again. Whether a widget draws at all is only known after it has
--- run, and its spacer has to exist before it to land on the right side of it, so
--- the loader speculates and hands the name back when nothing appeared.
+-- Drop a spacer the loader created speculatively for a widget that drew nothing.
 function ctx.ungap(name)
     if not name then return end
     for i = #ctx.groups.right, 1, -1 do
@@ -102,8 +87,7 @@ function ctx.ungap(name)
 end
 
 function ctx.chip(name, members, opts)
-    -- A memberless bracket is rejected by sketchybar, and every later :set on it
-    -- then addresses an item that does not exist.
+    -- sketchybar rejects a memberless bracket.
     if ctx.config.chips == false or not members or #members == 0 then return no_chip end
     local props = {
         background = {
@@ -116,9 +100,8 @@ function ctx.chip(name, members, opts)
     return sbar.add("bracket", name, members, props)
 end
 
--- Normalise the optional blocks once, here, rather than guarding every read:
--- the structures run before any widget exists, so an omitted `bar` block took
--- the whole bar down with it instead of just losing a feature.
+-- Normalise optional blocks before the structures read them; a missing `bar`
+-- block must not take the whole bar down.
 config.bar = type(config.bar) == "table" and config.bar or {}
 config.bar.height = config.bar.height or 40
 

@@ -11,8 +11,7 @@ return function(ctx)
     ctx.cluster("status", vpn.name)
 
     vpn:subscribe({ "routine", "forced", "system_woke" }, function()
-        -- Count only services reporting "(Connected)". Don't probe utun
-        -- interfaces: every Mac keeps a utun0 with an inet6 link-local up for
+        -- Don't probe utun interfaces: every Mac keeps a utun0 up for
         -- Handoff/Private Relay, which reads as connected forever.
         sbar.exec("scutil --nc list 2>/dev/null | grep -c '(Connected)'", function(out)
             local connected = (tonumber(tostring(out):match("%d+")) or 0) > 0
