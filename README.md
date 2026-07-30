@@ -58,9 +58,16 @@ Always on: the brand glyph and the front-app name. Everything else is optional.
 | `audio` | loopback routing for the EQ | `auto_route`, `volume_keys` |
 
 `weather` and `surf` use [Open-Meteo](https://open-meteo.com) — no key, no
-account. `weather` takes a place name and geocodes it once; `surf` takes raw
-coordinates, because geocoding a break name lands in the town centre where the
-marine model has no data.
+account — and locate you through CoreLocation, so no coordinates or city name
+have to live in this file. Set `weather.place` to name a city instead, or
+`surf.lat`/`surf.lon` to watch a break you are not standing on. The marine
+model's grid is coarse enough that an inland fix snaps to the nearest water.
+
+Location needs a grant. CoreLocation ignores a bare binary — authorization is
+per app bundle — so `install.sh` builds `helpers/location` into a small signed
+`.app`. macOS will ask once. Because the grant is keyed to the code signature
+and `codesign --sign -` is ad-hoc, rebuilding the helper changes its identity
+and revokes the grant, the same trap as Accessibility below.
 
 `servers` reads `~/.ssh/config` rather than taking a host list, so no addresses
 end up in this file. Every non-wildcard `Host` becomes a dot, each resolved with
@@ -188,6 +195,11 @@ picked your output **from the bar's volume popup** at least once — that click 
 what builds the aggregate.
 
 **Volume keys dead while routed.** Set `audio.volume_keys = true`.
+
+**Weather or surf stuck on `--`.** They need Location Services. Check the grant
+for `sketchybar-location` under System Settings → Privacy & Security → Location
+Services, and remember that rebuilding the helper revokes it. Naming
+`weather.place` skips location entirely.
 
 **Nothing reacts to clicks.** The bar is covered. `yabai -m config external_bar`
 must reserve at least the bar height plus its offset — see the table above.

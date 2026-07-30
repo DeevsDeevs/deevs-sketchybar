@@ -20,6 +20,7 @@ make -C helpers/menus >/dev/null
 make -C helpers/audio_devices >/dev/null
 make -C helpers/event_providers >/dev/null
 make -C helpers/volume_keys >/dev/null
+make -C helpers/location >/dev/null
 say "helpers built"
 
 if [ ! -f "$HOME/.local/share/sketchybar_lua/sketchybar.so" ]; then

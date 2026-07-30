@@ -1,9 +1,8 @@
 return function(ctx)
     local p = ctx.palette
     local cfg = ctx.config.weather or {}
-    -- Without a place there is nothing to look up; hide like any widget whose
-    -- dependency is missing rather than sitting there as a dead "--°".
-    if not cfg.place then return end
+    -- With no `place` the machine's own location is used, so no city has to be
+    -- named in this repo's public config. `place` overrides it.
 
     local weather = sbar.add("item", "widgets.weather", {
         position = "right",
@@ -66,11 +65,17 @@ return function(ctx)
         end)
     end
 
-    -- Geocoding must stay retryable rather than one-shot at load: a laptop
-    -- that boots faster than wifi would otherwise never resolve the place and
-    -- the widget would be dead until the next config reload.
+    -- Resolving must stay retryable rather than one-shot at load: a laptop that
+    -- boots faster than wifi would otherwise never resolve its point and the
+    -- widget would be dead until the next config reload.
     local function render()
-        if point then fetch() else geocode() end
+        if point then return fetch() end
+        if cfg.place then return geocode() end
+        ctx.locate(function(where)
+            if not where then return end
+            point = where
+            fetch()
+        end)
     end
 
     weather:subscribe({ "routine", "forced", "system_woke" }, render)

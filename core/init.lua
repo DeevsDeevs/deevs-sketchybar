@@ -30,6 +30,21 @@ function ctx.shell_quote(value)
     return "'" .. tostring(value):gsub("'", "'\\''") .. "'"
 end
 
+-- Current coordinates as an Open-Meteo query fragment, or nil if Location
+-- Services said no. Cached for the session: the fix is kilometre-accurate and
+-- two widgets ask for it, so this runs the helper once rather than per caller.
+local located
+function ctx.locate(done)
+    if located then return done(located) end
+    sbar.exec(ctx.shell_quote(
+        ctx.helper("location/bin/location.app/Contents/MacOS/location")), function(out)
+        local lat, lon = tostring(out):match("(-?%d+%.?%d*)%s+(-?%d+%.?%d*)")
+        if not lat then return done(nil) end
+        located = "latitude=" .. lat .. "&longitude=" .. lon
+        done(located)
+    end)
+end
+
 -- The rounded slab behind a cluster of items. Every widget draws its
 -- background through this so the bar keeps one rhythm instead of some chips
 -- having a slab and some floating bare; `chips = false` drops them all.

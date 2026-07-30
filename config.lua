@@ -66,15 +66,14 @@ return {
     mic  = { enabled = false },  -- click-to-mute
     lang = { enabled = false },  -- input source: EN / RU / …
 
-    weather = {
-        enabled = true,
-        place = "Lisbon",        -- geocoded once at load; no API key, no account
-    },
+    -- Both read Open-Meteo: no API key, no account. Location comes from
+    -- CoreLocation, so nothing about where you are lives in this file.
+    --   weather = { place = "Porto" }     -- name a city instead
+    --   surf = { lat = .., lon = .. }     -- watch a break you are not at
+    weather = { enabled = true },
 
     surf = {
         enabled = true,
-        lat = 38.6800,           -- the break itself, not the town: the marine
-        lon = -9.3370,           -- model has no data over land
         up = 1.5,                -- metres at which the chip lights up
     },
 
