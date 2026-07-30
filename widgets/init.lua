@@ -21,19 +21,27 @@ function M.load(ctx)
 
     -- Right-position items lay out RIGHT-TO-LEFT in creation order.
     local drawn = false
-    local function add(names)
+    -- `sep` separates widgets *inside* one cluster: without it their chips share an edge
+    -- and read as one smeared pill, with the full gap they stop looking related.
+    local function add(names, sep)
         local before = #ctx.groups.right
+        local drew = false
         for _, name in ipairs(names) do
-            if on(c[name]) then require("widgets." .. name)(ctx) end
+            if on(c[name]) then
+                local spacer = (drew and sep) and ctx.gap(sep) or nil
+                local mark = #ctx.groups.right
+                require("widgets." .. name)(ctx)
+                if #ctx.groups.right > mark then drew = true else ctx.ungap(spacer) end
+            end
         end
         return #ctx.groups.right > before
     end
 
     -- Spacer only where a cluster actually grew the group: `enabled` can't tell, since a
     -- widget whose dependency is missing adds nothing and would leave a dangling gap.
-    local function cluster(names)
+    local function cluster(names, sep)
         local spacer = drawn and ctx.gap() or nil
-        if add(names) then
+        if add(names, sep) then
             drawn = true
         else
             ctx.ungap(spacer)
@@ -46,7 +54,7 @@ function M.load(ctx)
     cluster({ "session" })
     cluster({ "repo" })
     -- One unit: the selector sits between the two widgets it retargets.
-    cluster({ "herdr", "servers", "system" })
+    cluster({ "herdr", "servers", "system" }, 5)
     if not media_left then cluster({ "media" }) end
 end
 

@@ -21,8 +21,17 @@ return function(ctx)
 
     local chip = sbar.add("item", "herdr", {
         position = "right",
-        icon = { string = "✳", color = ctx.with_alpha(p.fg, 0.5), font = { size = 12.0 } },
-        label = { string = "—", font = { family = ctx.settings.font.numbers } },
+        icon = {
+            string = "✳",
+            color = ctx.with_alpha(p.fg, 0.5),
+            font = { size = 12.0 },
+            padding_right = 3,
+        },
+        label = {
+            string = "—",
+            font = { family = ctx.settings.font.numbers },
+            padding_left = 0,
+        },
         update_freq = conf.poll or 5,
         updates = true, -- default when_shown gets no routine while drawing=false, so a hidden chip could never return
         -- Unset, a popup row inherits the bar's 28pt item height and lands ~40pt apart,
