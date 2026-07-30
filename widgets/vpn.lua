@@ -11,8 +11,7 @@ return function(ctx)
     ctx.cluster("status", vpn.name)
 
     vpn:subscribe({ "routine", "forced", "system_woke" }, function()
-        -- Don't probe utun interfaces: every Mac keeps a utun0 up for
-        -- Handoff/Private Relay, which reads as connected forever.
+        -- Not utun interfaces: every Mac keeps a utun0 up for Handoff/Private Relay, which reads as connected forever.
         sbar.exec("scutil --nc list 2>/dev/null | grep -c '(Connected)'", function(out)
             local connected = (tonumber(tostring(out):match("%d+")) or 0) > 0
             vpn:set({ icon = { color = connected and p.good or ctx.with_alpha(p.fg, 0.35) } })

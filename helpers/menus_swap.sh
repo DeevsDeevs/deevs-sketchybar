@@ -1,8 +1,6 @@
 #!/usr/bin/env bash
 
-# Spaces ↔ front-app menus swap.
-# sketchybar itself must spawn `menus`: macOS ties the Accessibility grant to
-# the spawning process. State file keeps the toggle idempotent across reloads.
+# sketchybar itself must spawn `menus`: macOS ties the Accessibility grant to the spawning process.
 
 set -u
 DIR="$(cd "$(dirname "$0")" && pwd)"

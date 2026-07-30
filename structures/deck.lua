@@ -1,4 +1,3 @@
--- Glass, but a bottom deck. tmux owns the top of your screen, this owns the floor.
 local glass = require("structures.glass")
 local M = {}
 

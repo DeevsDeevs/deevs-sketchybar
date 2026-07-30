@@ -1,8 +1,7 @@
 return function(ctx)
     local p = ctx.palette
     local cfg = ctx.config.surf or {}
-    -- Coordinates, not a place name: geocoding a break lands in the town centre.
-    -- Unset lat/lon falls back to the machine's location; the marine grid snaps an inland fix to water.
+    -- Unset lat/lon uses the machine's location; the marine grid snaps an inland fix to water.
     local lat, lon = tonumber(cfg.lat), tonumber(cfg.lon)
     local up = tonumber(cfg.up) or 1.5
     local dim = ctx.with_alpha(p.fg, 0.7)
@@ -26,18 +25,15 @@ return function(ctx)
         sbar.exec(string.format(
             "curl -s --max-time 8 'https://marine-api.open-meteo.com/v1/marine?%s&current=wave_height,wave_period'",
             where), function(out)
-            -- SbarLua parses JSON stdout into a table; a non-table body is a
-            -- transport failure, so keep the last reading.
+            -- SbarLua parses JSON stdout into a table; a non-table body is a transport failure, so keep the last reading.
             if type(out) ~= "table" then return end
-            -- JSON null arrives as an absent key, and an error object has no
-            -- .current: both mean answered-but-no-data, so degrade visibly.
+            -- JSON null arrives as an ABSENT KEY; no .current means answered-but-no-data, so degrade visibly.
             local cur = type(out.current) == "table" and out.current or {}
             local height = tonumber(cur.wave_height)
             if not height then
                 surf:set({ icon = { color = dim }, label = { string = "--", color = dim } })
                 return
             end
-            -- Compare the rounded display value so "1.5m" is never unlit at up = 1.5.
             local shown = math.floor(height * 10 + 0.5) / 10
             local firing = shown >= up
             local units = type(out.current_units) == "table" and out.current_units or {}
@@ -53,7 +49,6 @@ return function(ctx)
         end)
     end
 
-    -- Retryable, not one-shot: the location fix can be unavailable at login.
     local function fetch()
         if point then return query(point) end
         ctx.locate(function(where)

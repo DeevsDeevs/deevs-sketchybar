@@ -7,8 +7,7 @@ return function(ctx)
         .. (auto_route and " ROUTE_FLAG=--route" or "")
         .. " " .. ctx.shell_quote(ctx.helper("volume_popup.sh"))
 
-    -- No click_script: an item with one never forwards mouse events to the lua
-    -- bridge, so mouse.exited.global would never fire.
+    -- No click_script: an item with one never forwards mouse events to lua, so mouse.exited.global would never fire.
     local volume = sbar.add("item", "widgets.volume", {
         position = "right",
         icon = { string = "\u{f057e}", font = { size = 13.0 }, color = ctx.with_alpha(p.fg, 0.8) },
@@ -57,10 +56,7 @@ return function(ctx)
         if not (env.INFO.modifier == "ctrl") then delta = delta * 10.0 end
         sbar.exec(helper .. " volume " .. (delta > 0 and "+" or "") .. math.floor(delta), refresh)
     end)
-    -- Optional tap: applies the three volume keys to the real device beneath
-    -- the aggregate. Reap unconditionally by process name (argv may be relative),
-    -- and in the SAME shell as the spawn — as two execs the pkill can land after
-    -- the spawn and kill the tap it was meant to replace.
+    -- Reap and spawn in ONE shell: as two execs the pkill can land after the spawn and kill the tap it was meant to replace.
     local reap = "pkill -x volume_keys >/dev/null 2>&1"
     if (ctx.config.audio or {}).volume_keys then
         sbar.exec(reap .. "; " .. ctx.detached(ctx.shell_quote(ctx.helper("volume_keys/bin/volume_keys"))))
@@ -68,14 +64,12 @@ return function(ctx)
         sbar.exec(reap)
     end
 
-    -- One message: hide + remove from two processes renders twice and the popup
-    -- visibly shrinks before it disappears.
+    -- One message: separate hide + remove renders twice and the popup visibly shrinks before it disappears.
     local function close_popup()
         sbar.exec("sketchybar --set " .. volume.name .. " popup.drawing=off"
             .. " --remove '/volume.device\\..*/' >/dev/null 2>&1")
     end
 
-    -- The helper owns the toggle; see volume_popup.sh for why it queries state.
     volume:subscribe("mouse.clicked", function(env)
         if env.BUTTON == "right" then
             sbar.exec("open /System/Library/PreferencePanes/Sound.prefpane")

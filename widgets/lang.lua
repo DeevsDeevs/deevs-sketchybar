@@ -6,7 +6,6 @@ return function(ctx)
     end
 
     local names = { US = "EN", ABC = "EN", Russian = "RU", British = "EN" }
-    -- Normalise config keys so both "Russian" and "com.apple.keylayout.Russian" work.
     for id, short in pairs((ctx.config.lang or {}).names or {}) do
         names[short_id(id) or id] = short
     end
@@ -27,7 +26,6 @@ return function(ctx)
         sbar.exec("defaults read com.apple.HIToolbox AppleCurrentKeyboardLayoutInputSourceID 2>/dev/null", function(out)
             local id = short_id(out)
             if not id then return end
-            -- %w is ASCII-only, so byte-wise sub/upper is safe.
             lang:set({ label = names[id] or id:sub(1, 2):upper() })
         end)
     end

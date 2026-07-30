@@ -7,8 +7,7 @@ return function(ctx)
         label = { font = { family = ctx.settings.font.numbers }, color = ctx.with_alpha(p.fg, 0.8) },
         update_freq = 180,
         popup = { align = "center" },
-        -- updates defaults to when_shown: once drawing=false no routine arrives,
-        -- so one failed pmset read would hide the chip permanently.
+        -- updates defaults to when_shown: after drawing=false no routine arrives and the chip could never un-hide.
         updates = true,
     })
     table.insert(ctx.groups.right, battery.name)

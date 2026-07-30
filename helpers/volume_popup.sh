@@ -27,7 +27,6 @@ popup_is_open() {
     | sed -n '/"popup"/,$p' | grep -m1 '"drawing"' | grep -q '"on"'
 }
 
-# Toggle the live state: picking a device closes the popup via the CLI, so a cached flag goes stale.
 if popup_is_open; then
   sketchybar --set "$BRACKET" popup.drawing=off --remove '/volume.device\..*/'
   exit 0
@@ -70,5 +69,4 @@ if [[ $index -eq 0 ]]; then
   exit 0
 fi
 
-# All rows + reveal in one message: each --add relayouts an already-visible popup.
 sketchybar "${args[@]}" --set "$BRACKET" popup.drawing=on

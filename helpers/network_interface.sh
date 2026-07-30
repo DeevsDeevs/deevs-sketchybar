@@ -23,8 +23,7 @@ detect_from_default_route() {
   route -n get default 2>/dev/null | awk '/interface:/{print $2; exit}'
 }
 
-# Default route first (fast, names the live interface): the SSID scan matches a
-# docked Wi-Fi card, and SPAirPortDataType blocks for seconds during config load.
+# Default route first: the SSID scan can match a docked Wi-Fi card, and SPAirPortDataType blocks for seconds.
 iface="$(detect_from_default_route || true)"
 if [[ -z "$iface" ]]; then
   iface="$(detect_from_summary || true)"

@@ -1,6 +1,3 @@
--- Front app name; when menus_swap is on, clicking it swaps spaces ↔ app menus.
--- menus_swap.sh runs as a plain click_script: macOS attributes the Accessibility
--- grant to the spawning process, which must be sketchybar itself.
 return function(ctx)
     local p, c = ctx.palette, ctx.config
     local max_menus = 12
@@ -17,7 +14,6 @@ return function(ctx)
     })
     table.insert(ctx.groups.left, front_app.name)
 
-    -- System dialogs surface as internal window names; keep the last real app.
     local system_windows = {
         universalAccessAuthWarn = true,
         loginwindow = true,
@@ -50,21 +46,19 @@ return function(ctx)
             -- slot i shows the (i+1)th menu: the app menu is the front_app label
             click_script = ctx.shell_quote(menus_bin) .. " -s " .. (i + 1),
         })
-        -- The islands pod is built from ctx.groups.left; omit this and menus mode has no pill.
         table.insert(ctx.groups.left, slot.name)
     end
 
+    -- Plain click_script: macOS gives the Accessibility grant to the SPAWNING process, which must be sketchybar itself.
     front_app:set({ click_script = "MENU_SLOTS=" .. max_menus .. " " .. ctx.shell_quote(swap) })
 
-    -- Refresher created via the CLI so its script runs as a real shell script, not through lua.
+    -- CLI-created so its script runs as a real shell script, not through lua.
     sbar.exec("sketchybar --add item menus.refresher left"
         .. " --set menus.refresher drawing=off updates=on"
-        -- Quoted twice: the outer pass makes one CLI argument, the inner survives
-        -- sketchybar re-evaluating the string as shell (paths with spaces).
+        -- Quoted twice: sketchybar re-evaluates the script= string as shell.
         .. " script=" .. ctx.shell_quote("MENU_SLOTS=" .. max_menus .. " "
             .. ctx.shell_quote(swap) .. " refresh")
         .. " --subscribe menus.refresher front_app_switched")
 
-    -- Always start in spaces mode after a reload.
     sbar.exec(ctx.shell_quote(swap) .. " hide")
 end

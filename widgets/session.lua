@@ -1,16 +1,12 @@
--- Session.app pomodoro: helpers/session_stream.sh pushes session_update events
--- (from prefs — the sqlite only gets a row once a block finishes). Controls via
--- session:/// deep links; no alias, since a hidden menubar aliases as a blank region.
+-- No menubar alias: a hidden menubar item aliases as a blank region; state comes from session_stream.sh instead.
 return function(ctx)
     local p = ctx.palette
 
-    -- 0/8 … 8/8 pie glyphs: background.clip only applies to images and a
-    -- slider always claims its own slot, so progress lives in the icon.
+    -- Progress lives in the icon: background.clip only applies to images and a slider claims its own slot.
     local PIE = { "󰝦", "󰪞", "󰪟", "󰪠", "󰪡", "󰪢", "󰪣", "󰪤", "󰪥" }
     local STACK_W = 72   -- fits a 14-char intent at 8pt
 
-    -- Right items lay out right-to-left in creation order: stack first,
-    -- icon last so it lands to the left.
+    -- Right items lay out RIGHT-TO-LEFT in creation order: icon created last lands leftmost.
     local time = sbar.add("item", "session.time", {
         position = "right",
         width = 0,
@@ -50,8 +46,7 @@ return function(ctx)
         icon = { string = PIE[1], color = p.accent, font = { size = 14.0 }, padding_right = 5 },
         label = { drawing = false },
         update_freq = 1,
-        -- updates defaults to when_shown: an undrawn item gets no routine or
-        -- forced events and could never turn itself back on.
+        -- updates defaults to when_shown: an undrawn item gets no routine and could never turn itself back on.
         updates = true,
         popup = { align = "center", horizontal = true },
     })
@@ -84,7 +79,6 @@ return function(ctx)
             click_script = "open " .. ctx.shell_quote(action.link) .. close,
         })
     end
-    -- Hidden until it holds real numbers.
     local stats = sbar.add("item", {
         position = "popup." .. icon.name,
         drawing = false,
@@ -100,8 +94,7 @@ return function(ctx)
     local deadline, total, kind = nil, nil, nil
     local absent = false
 
-    -- Hover marquees the full intent inside the fixed box (scroll_texts does
-    -- not move text; animating the clipped label's padding_left does).
+    -- scroll_texts does not move text; the marquee animates the clipped label's padding_left.
     local intent, hovering, slide_out = "", false, false
 
     local function name_px(value)
@@ -132,7 +125,6 @@ return function(ctx)
         slide_step()
     end
 
-    -- States: running, idle (clickable empty ring), absent (Session not installed).
     local function show(state)
         local present = state ~= "absent"
         -- Undrawn items never deliver mouse.exited, so hover would latch on.
@@ -147,9 +139,7 @@ return function(ctx)
         if not present then icon:set({ popup = { drawing = false } }) end
     end
 
-    -- 1s tick off the cached deadline smooths between the stream's coarser resyncs.
     local function tick()
-        -- Sticky, or the 1s tick re-shows the chip on machines without Session.
         if absent then return end
         if not deadline then return show("idle") end
         local left = deadline - os.time()
@@ -159,7 +149,6 @@ return function(ctx)
         end
         local done = total and total > 0 and (1 - left / total) or 0
         local accent = kind == "rest" and p.accent2 or p.accent
-        -- Blocks run past an hour; the h marker avoids "119:05".
         local str = left >= 3600
             and string.format("%dh%02d", left // 3600, (left % 3600) // 60)
             or string.format("%d:%02d", left // 60, left % 60)
@@ -189,7 +178,6 @@ return function(ctx)
         end
         deadline = os.time() + (tonumber(env.LEFT) or 0)
         total, kind = tonumber(env.TOTAL), env.KIND
-        -- Untruncated: the marquee walks this; max_chars only governs the collapsed chip.
         intent = (env.TITLE ~= "" and env.TITLE) or "focus"
         if hovering then
             name:set({ label = { max_chars = 0, string = intent } })
@@ -214,7 +202,6 @@ return function(ctx)
         icon:set({ popup = { drawing = "toggle" } })
     end
 
-    -- One marquee leg per tick.
     name:subscribe("routine", function()
         if hovering then slide_step() end
     end)

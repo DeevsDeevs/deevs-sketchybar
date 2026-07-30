@@ -1,13 +1,9 @@
--- herdr: agent fleet across local + SSH hosts. Chip shows working/blocked
--- counts; popup lists agents grouped by status, click a row to focus.
 return function(ctx)
     local p = ctx.palette
-    -- `herdr = true` and an omitted host list both mean "just this machine".
     local conf = type(ctx.config.herdr) == "table" and ctx.config.herdr or {}
     local hosts = conf.hosts or { { name = "local" } }
-    local fleet = {} -- host -> agents list
+    local fleet = {}
 
-    -- Truncate by codepoint: a byte sub can cut a multibyte character in half.
     local function clip(value, limit)
         local str = tostring(value or "")
         local cut = utf8.offset(str, limit + 1)
@@ -19,7 +15,7 @@ return function(ctx)
         icon = { string = "✳", color = ctx.with_alpha(p.fg, 0.5), font = { size = 12.0 } },
         label = { string = "—", font = { family = ctx.settings.font.numbers } },
         update_freq = conf.poll or 5,
-        updates = true, -- keep polling even while hidden (0 agents), or it never returns
+        updates = true, -- default when_shown gets no routine while drawing=false, so a hidden chip could never return
         popup = { align = "right" },
     })
     table.insert(ctx.groups.right, chip.name)
@@ -105,7 +101,6 @@ return function(ctx)
         end
     end
 
-    -- Redraw per reply: a dropped callback or hung SSH host must not freeze the chip.
     local function poll()
         for _, host in ipairs(hosts) do
             sbar.exec(host_cmd(host), function(result)

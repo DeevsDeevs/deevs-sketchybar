@@ -1,4 +1,3 @@
--- One floating translucent slab. Hierarchy by opacity, not borders.
 local M = {}
 
 function M.style(ctx)

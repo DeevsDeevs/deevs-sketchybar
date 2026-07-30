@@ -1,4 +1,3 @@
--- One system cluster: load-colored cpu sparkline + ram + net rates.
 return function(ctx)
     local p = ctx.palette
 
@@ -49,7 +48,7 @@ return function(ctx)
     })
     local cpu = sbar.add("graph", "system.cpu", 36, {
         position = "right",
-        -- an unset fill_color is opaque light grey (a solid slab); tint it from the line colour
+        -- unset fill_color defaults to an opaque grey slab
         graph = { color = p.accent, fill_color = ctx.with_alpha(p.accent, 0.15), line_width = 1.0 },
         background = { height = 22, color = p.transparent, drawing = true },
         icon = { drawing = false },
@@ -67,7 +66,6 @@ return function(ctx)
     table.insert(ctx.groups.right, net_up.name)
     table.insert(ctx.groups.right, net_down.name)
 
-    -- cpu: C event provider (compiled by install.sh)
     local cpu_bin = ctx.helper("event_providers/cpu_load/bin/cpu_load")
     sbar.exec("killall cpu_load >/dev/null 2>&1; "
         .. ctx.detached(ctx.shell_quote(cpu_bin) .. " cpu_update 2.0"))
@@ -80,8 +78,7 @@ return function(ctx)
         cpu:set({ graph = { color = color }, label = { string = env.total_load .. "%", color = color } })
     end)
 
-    -- net: C event provider on the active interface (detected synchronously —
-    -- nested exec callbacks during config load get dropped)
+    -- interface detected via io.popen, not sbar.exec: nested exec callbacks during config load get dropped
     local net_bin = ctx.helper("event_providers/network_load/bin/network_load")
     local ih = io.popen(ctx.shell_quote(ctx.helper("network_interface.sh")) .. " 2>/dev/null")
     local iface = ih and (ih:read("*a") or ""):gsub("%s+", "") or ""
@@ -89,8 +86,7 @@ return function(ctx)
     if iface == "" then iface = "en0" end
     sbar.exec("killall network_load >/dev/null 2>&1; "
         .. ctx.detached(ctx.shell_quote(net_bin) .. " " .. ctx.shell_quote(iface) .. " network_update 2.0"))
-    -- Fixed-width rates: the zero-width up row overlays the down row, and they
-    -- only stay aligned because the numbers font is monospaced.
+    -- width=0 does not collapse the up row: it still occupies its label width, overlaying the down row; aligned only because the numbers font is monospaced.
     local unit = { [" Bps"] = "B", ["KBps"] = "K", ["MBps"] = "M" }
     local function rate(raw)
         local n, u = tostring(raw or ""):match("^(%d+)(.*)$")
@@ -103,7 +99,7 @@ return function(ctx)
         net_down:set({ label = "↓ " .. rate(env.download) })
     end)
 
-    -- ram: vm_stat poll. The field is "Pages occupied by compressor", not "Pages compressed".
+    -- vm_stat says "Pages occupied by compressor", not "Pages compressed".
     ram:subscribe({ "routine", "forced" }, function()
         sbar.exec([[vm_stat | awk '/page size/{gsub(/[^0-9]/,"",$8); ps=$8} /Pages active/{a=$3} /Pages wired/{w=$4} /occupied by compressor/{c=$5} END{printf "%.0f", (a+w+c)*ps/1073741824}']],
             function(gb)

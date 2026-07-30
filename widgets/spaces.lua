@@ -4,8 +4,7 @@ return function(ctx)
     local p, c, style = ctx.palette, ctx.config, ctx.style
     local spaces = {}
 
-    -- `spaces = true` is documented shorthand: indexing a boolean throws out of
-    -- widgets.init and the whole bar comes up dead.
+    -- `spaces = true` is documented shorthand: indexing a boolean would kill the whole bar.
     local conf = type(c.spaces) == "table" and c.spaces or {}
     local max = conf.max or 10
     local show_icons = conf.icons ~= false
@@ -26,7 +25,6 @@ return function(ctx)
         if #indices == 0 then
             for i = 1, max do table.insert(indices, i) end
         end
-        -- max caps the yabai answer too, not just the fallback
         while #indices > max do table.remove(indices) end
         return indices
     end
@@ -82,7 +80,6 @@ return function(ctx)
             icon_line = icon_line .. (app_icons[app] or app_icons["Default"])
         end
         if no_app then icon_line = "—" end
-        -- Spaces created after startup have no item yet; they appear on reload.
         local entry = spaces[tonumber(env.INFO.space)]
         if entry then entry.item:set({ label = icon_line }) end
     end)

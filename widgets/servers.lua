@@ -1,5 +1,4 @@
--- Enumerate Host aliases: `ssh -G` cannot list what exists, so Include'd files
--- (relative paths glob against ~/.ssh) are scanned too; `Host=alias` is legal, hence the `=` fixup.
+-- `ssh -G` cannot list what Host aliases exist, so scan config plus Include'd files (relative paths glob against ~/.ssh); `Host=alias` is legal, hence the `=` fixup.
 local DISCOVER = [[cd "$HOME/.ssh" 2>/dev/null || exit 0
 [ -r config ] || exit 0
 K='{ l=$0; sub(/^[ \t]+/,"",l); if (l ~ /^[A-Za-z]+=/) sub(/=/," ",l); n=split(l,f);
@@ -7,8 +6,7 @@ K='{ l=$0; sub(/^[ \t]+/,"",l); if (l ~ /^[A-Za-z]+=/) sub(/=/," ",l); n=split(l
        if (k=="include") sub(/^~\//,ENVIRON["HOME"] "/",v); print v } }'
 awk -v k=host "$K" config $(awk -v k=include "$K" config) 2>/dev/null]]
 
--- `ssh -G` resolves config only, no socket; run concurrently to keep load fast.
--- Presence of proxyjump/proxycommand marks a jump-only host: drop it, probing its private address is meaningless.
+-- proxyjump/proxycommand marks a jump-only host: drop it, probing its private address is meaningless.
 local RESOLVE = [[ | awk '!s[$0]++' | { n=0
 while IFS= read -r a; do
   case $a in ''|*[*?]*) continue ;; esac
@@ -26,8 +24,6 @@ return function(ctx)
     local cfg = ctx.config.servers or {}
     local idle = ctx.with_alpha(p.fg, 0.25)
 
-    -- Explicit `hosts` replaces discovery. Only strings count, so the old
-    -- `hosts = { { name, host } }` schema falls through to discovery instead of quoting a table address.
     local quoted = {}
     for _, alias in ipairs(type(cfg.hosts) == "table" and cfg.hosts or {}) do
         if type(alias) == "string" and alias ~= "" then
@@ -47,7 +43,6 @@ return function(ctx)
             local alias, host, port = line:match("^%d+\t([^\t]+)\t([^\t]+)\t(%d+)$")
             local keep = alias ~= nil
             if keep and filter then
-                -- pcall: a bad `filter` pattern must not abort the whole config load.
                 local ok, found = pcall(string.find, alias, filter)
                 keep = ok and found ~= nil
             end
@@ -88,7 +83,6 @@ return function(ctx)
     for _, h in ipairs(hosts) do longest = math.max(longest, #h.alias) end
     local name_width = math.max(90, math.ceil(longest * 7.8) + 8)
 
-    -- Alias only, never the resolved hostname: a 48-char EC2 name would triple the popup width.
     for i, h in ipairs(hosts) do
         rows[i] = sbar.add("item", "widgets.servers.row." .. i, {
             position = "popup." .. servers.name,
@@ -97,11 +91,10 @@ return function(ctx)
         })
     end
 
-    -- Parallel probes: SbarLua's exec child carries alarm(60) — a sequential sweep past 60s is
-    -- killed and the callback never fires. Each line carries its host index since replies finish in any order.
+    -- Parallel: SbarLua's exec child carries alarm(60), so a sequential sweep past 60s is killed and the callback never fires.
     local probes = {}
     for i, h in ipairs(hosts) do
-        -- Only -G bounds the connect: `nc -z -w 3` against a black-holed address takes 75s.
+        -- Only nc -G bounds the connect: -w 3 against a black-holed address takes 75s.
         probes[i] = "( nc -z -G 3 " .. ctx.shell_quote(h.addr) .. " " .. h.port
             .. " >/dev/null 2>&1 && echo '" .. i .. " 1' || echo '" .. i .. " 0' ) &"
     end
@@ -115,8 +108,7 @@ return function(ctx)
 
     local function apply(out)
         local seen = {}
-        -- Anchored per-line match: the exec response reaches lua un-NUL-terminated,
-        -- so the tail can carry garbage that a loose scan would count as state.
+        -- The exec response arrives un-NUL-terminated; anchored per-line match rejects the garbage tail.
         for line in tostring(out):gmatch("[^\n]+") do
             local index, state = line:match("^(%d+) ([01])$")
             local i = index and tonumber(index)
@@ -125,7 +117,6 @@ return function(ctx)
                 paint(i, state == "1")
             end
         end
-        -- A missing line reverts to unknown rather than holding a stale colour.
         for i = 1, #hosts do
             if not seen[i] then
                 dots[i]:set({ icon = { color = idle } })
@@ -137,7 +128,6 @@ return function(ctx)
     local function refresh() sbar.exec(probe, apply) end
 
     servers:subscribe({ "routine", "forced", "system_woke" }, refresh)
-    -- routine first fires only after update_freq; prime immediately.
     refresh()
 
     servers:subscribe("mouse.clicked", function()

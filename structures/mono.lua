@@ -1,4 +1,3 @@
--- Text-first: fully transparent bar, no chips, wide gaps. Mostly deletion.
 local M = {}
 
 function M.style(ctx)

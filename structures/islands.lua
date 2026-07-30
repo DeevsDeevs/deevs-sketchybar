@@ -1,11 +1,9 @@
--- No bar at all: floating pill clusters with wallpaper between them.
--- Widgets register their item names in ctx.groups; finish() wraps them in pods.
 local M = {}
 
 function M.style(ctx)
     local p = ctx.palette
     return {
-        item_bg = p.transparent, -- pods carry the background, items stay naked
+        item_bg = p.transparent,
         item_radius = 8,
         item_height = 28,
         popup_bg = ctx.with_alpha(p.bg, 0.94),
