@@ -1,3 +1,6 @@
 helpers/**/*.o
 helpers/**/bin/*
 !helpers/**/bin/.keep
+
+# `luac` without -o drops this next to the file it checked; one got committed
+luac.out
