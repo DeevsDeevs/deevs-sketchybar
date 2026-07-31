@@ -14,12 +14,12 @@
 set -u
 export PATH="/usr/bin:/bin:$PATH"
 
+# No pane is legitimate: herdr_attach.sh calls this purely to raise the terminal.
 pane="${1:-}"
-[ -n "$pane" ] || exit 0
-
-herdr agent focus "$pane" >/dev/null 2>&1
+[ -n "$pane" ] && herdr agent focus "$pane" >/dev/null 2>&1
 
 app=""
+term_pid=""
 for pid in $(pgrep -x herdr 2>/dev/null); do
     cur="$pid"
     for _ in 1 2 3 4 5 6 7 8; do
@@ -29,6 +29,7 @@ for pid in $(pgrep -x herdr 2>/dev/null); do
             *.app/Contents/MacOS/*)
                 app="$(ps -o comm= -p "$ppid" 2>/dev/null)"
                 app="${app%%.app/*}.app"
+                term_pid="$ppid"
                 break
                 ;;
         esac
@@ -36,6 +37,31 @@ for pid in $(pgrep -x herdr 2>/dev/null); do
     done
     [ -n "$app" ] && break
 done
+
+# Go to the space first. Activating an app whose window is on another space raises it
+# for a frame and then focus falls back to where you were — measured as ghostty at
+# +1s and the previous app again at +2s. yabai's window ids go stale between query
+# and focus, but the space number it reports is good enough to switch to.
+if [ -n "$term_pid" ] && command -v yabai >/dev/null 2>&1; then
+    space="$(yabai -m query --windows 2>/dev/null |
+        jq -r --argjson pid "$term_pid" \
+            'map(select(.pid == $pid and (."is-minimized" | not))) | .[0].space // empty' 2>/dev/null)"
+    current="$(yabai -m query --spaces 2>/dev/null |
+        jq -r 'map(select(."has-focus")) | .[0].index // empty' 2>/dev/null)"
+    if [ -n "$space" ] && [ "$space" != "$current" ]; then
+        yabai -m space --focus "$space" >/dev/null 2>&1
+        sleep 0.2
+    fi
+fi
+
+# Activate the exact process, not the bundle. A terminal commonly runs as several
+# processes at once and `open -a` activates whichever the OS picks, which is
+# regularly not the one hosting herdr: the app comes forward showing someone else's
+# window. Needs Accessibility, which sketchybar already holds for the menus helper.
+if [ -n "$term_pid" ]; then
+    osascript -e "tell application \"System Events\" to set frontmost of (first process whose unix id is $term_pid) to true" \
+        >/dev/null 2>&1 && exit 0
+fi
 
 [ -n "$app" ] && open -a "$app" 2>/dev/null
 exit 0

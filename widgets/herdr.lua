@@ -192,9 +192,11 @@ return function(ctx)
             local lead = blocked and "◆" or working and "▶" or a.focused and "▸" or "·"
             local lead_color = blocked and p.bad or working and p.accent
                 or a.focused and p.fg or ctx.with_alpha(p.fg, 0.28)
-            -- Remote panes get the bare focus: there is no local window to raise.
+            -- A remote pane has no local window to raise, so clicking one brings the
+            -- session here instead of only moving focus on the far side.
             local focus = host.ssh
-                and over_ssh(host, string.format("herdr agent focus %s", ctx.shell_quote(a.pane_id)))
+                and string.format("%s %s %s", ctx.shell_quote(ctx.helper("herdr_attach.sh")),
+                    ctx.shell_quote(host.ssh), ctx.shell_quote(a.pane_id))
                 or string.format("%s %s", ctx.shell_quote(ctx.helper("herdr_focus.sh")),
                     ctx.shell_quote(a.pane_id))
             local props = {

@@ -84,6 +84,12 @@ configure twice. The chip shows the shortest unambiguous tail of the alias
 (`deevs.hetzner.berezka` and `deevs.aws.berezka` render as `hetzner.berezka` and
 `aws.berezka`).
 
+Clicking an agent jumps to it. A local one switches herdr to that pane, moves to
+the space its terminal is on, and raises that terminal — the exact process, since
+a terminal often runs several and activating the bundle picks the wrong one. A
+remote one focuses the agent on its host and attaches a local tab to that session,
+reusing the tab if one is already pointed there.
+
 Remote herdr runs through `$SHELL -ic` rather than a bare `ssh host herdr …`.
 Version managers (devbox, nix, mise, asdf) put the binary on `PATH` from the
 interactive rc, which plain ssh never sources — without this the host reports
