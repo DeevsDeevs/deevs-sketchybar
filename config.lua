@@ -40,7 +40,7 @@ return {
         enabled = true,      -- agent fleet (needs the herdr CLI)
         host = "selected",
         poll = 5,            -- seconds
-        tab = 1,             -- terminal tab herdr runs in; omit if it has its own window
+        -- tab = 1,          -- pin the terminal tab; found on its own unless set
         -- hosts is the untargeted list, ignored while host = "selected"
         -- hosts = { { name = "local" }, { name = "prod-1", ssh = "deevs@prod-1" } },
     },

@@ -90,10 +90,13 @@ a terminal often runs several and activating the bundle picks the wrong one. A
 remote one focuses the agent on its host and attaches a local tab to that session,
 reusing the tab if one is already pointed there.
 
-Set `herdr.tab` when herdr shares a terminal window with other tabs, since raising
-a window shows whichever tab was last on top. It is an index because there is
-nothing else to go on: herdr publishes no title to the terminal and its tty does
-not appear in the accessibility tree. Leave it unset when herdr has its own window.
+When herdr shares a terminal window with other tabs, raising the window would land
+on whichever tab was last on top, so the click finds herdr's tab first. herdr
+publishes no title of its own and its tty is absent from the accessibility tree,
+but a title written to that tty *does* reach the tab — so the click stamps a marker
+there, reads the tabs back to see which one changed, and puts the old title
+straight back. Nothing to configure, and it survives tabs being reordered or
+closed. `herdr.tab` pins an index instead, for terminals with no tab group to read.
 
 Remote herdr runs through `$SHELL -ic` rather than a bare `ssh host herdr …`.
 Version managers (devbox, nix, mise, asdf) put the binary on `PATH` from the
