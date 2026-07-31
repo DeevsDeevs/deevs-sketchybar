@@ -4,3 +4,4 @@ helpers/**/bin/*
 
 # `luac` without -o drops this next to the file it checked; one got committed
 luac.out
+helpers/raise/bin/raise

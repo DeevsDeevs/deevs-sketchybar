@@ -17,6 +17,7 @@ command -v git >/dev/null || { warn "git not found — needed to fetch SbarLua";
 
 say "building C helpers"
 make -C helpers/menus >/dev/null
+make -C helpers/raise >/dev/null
 make -C helpers/audio_devices >/dev/null
 make -C helpers/event_providers >/dev/null
 make -C helpers/volume_keys >/dev/null
