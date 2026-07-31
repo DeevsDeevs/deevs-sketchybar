@@ -192,9 +192,11 @@ return function(ctx)
             local lead = blocked and "◆" or working and "▶" or a.focused and "▸" or "·"
             local lead_color = blocked and p.bad or working and p.accent
                 or a.focused and p.fg or ctx.with_alpha(p.fg, 0.28)
+            -- Remote panes get the bare focus: there is no local window to raise.
             local focus = host.ssh
                 and over_ssh(host, string.format("herdr agent focus %s", ctx.shell_quote(a.pane_id)))
-                or string.format("herdr agent focus %s", ctx.shell_quote(a.pane_id))
+                or string.format("%s %s", ctx.shell_quote(ctx.helper("herdr_focus.sh")),
+                    ctx.shell_quote(a.pane_id))
             local props = {
                 position = "popup." .. chip.name,
                 icon = {
