@@ -49,22 +49,16 @@ return function(ctx)
     table.insert(ctx.groups.right, chip.name)
     local backdrop = ctx.chip("herdr.chip", { chip.name })
 
-    -- `$SHELL -ic`, not a bare command: version managers put herdr on PATH from the
-    -- interactive rc, which plain ssh never sources, and the host then reads as
-    -- "no agents" while agents are running on it.
     -- string.format, never `..`: concatenation drops an operand and builds
     -- `-o ConnectTimeout=4'host'`, which ssh rejects with empty stdout.
-    -- ConnectTimeout bounds only the handshake; ServerAlive deadlines the live session.
-    local function over_ssh(host, command)
-        return string.format(
-            "ssh -o BatchMode=yes -o ConnectTimeout=4 -o ServerAliveInterval=2 -o ServerAliveCountMax=2 %s %s",
-            ctx.shell_quote(host.ssh),
-            ctx.shell_quote(string.format("$SHELL -ic %s", ctx.shell_quote(command))))
+    local function over_ssh(host, args)
+        return string.format("%s %s %s", ctx.shell_quote(ctx.helper("herdr_remote.sh")),
+            ctx.shell_quote(host.ssh), args)
     end
 
     local function host_cmd(host)
         if host.ssh then
-            return string.format("%s 2>/dev/null", over_ssh(host, "herdr agent list"))
+            return string.format("%s 2>/dev/null", over_ssh(host, "agent list"))
         end
         return "herdr agent list 2>/dev/null"
     end

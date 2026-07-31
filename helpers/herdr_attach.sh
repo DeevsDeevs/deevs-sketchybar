@@ -19,12 +19,9 @@ tab="${3:-}"
 dir="$(cd "$(dirname "$0")" && pwd)"
 label="@$host"
 
-# The remote rc is where a version manager puts herdr on PATH; a plain ssh never reads it.
-if [ -n "$pane" ]; then
-    ssh -o BatchMode=yes -o ConnectTimeout=4 \
-        -o ServerAliveInterval=2 -o ServerAliveCountMax=2 \
-        -- "$host" "\$SHELL -ic 'herdr agent focus $pane'" >/dev/null 2>&1
-fi
+# Backgrounded: the far side's focus does not gate opening the tab here, and the
+# attach spends longer connecting than this takes anyway.
+[ -n "$pane" ] && "$dir/herdr_remote.sh" "$host" agent focus "$pane" >/dev/null 2>&1 &
 
 existing="$(herdr tab list 2>/dev/null |
     jq -r --arg l "$label" '.result.tabs[]? | select(.label == $l) | .tab_id' 2>/dev/null | head -1)"
