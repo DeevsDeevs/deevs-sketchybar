@@ -216,7 +216,10 @@ return function(ctx)
                     padding_left = 0,
                     padding_right = 14,
                 },
-                click_script = string.format("%s; sketchybar --set herdr popup.drawing=off", focus),
+                -- Popup down first, jump second. Dismissing it afterwards handed focus
+                -- back to whatever was underneath and undid the raise.
+                click_script = string.format(
+                    "sketchybar --set herdr popup.drawing=off; %s", focus),
             }
             if visible == false then props.drawing = false end
             if blocked or working then
