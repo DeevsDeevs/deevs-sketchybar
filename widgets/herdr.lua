@@ -185,7 +185,7 @@ return function(ctx)
 
         -- Status tints the row itself: a 7pt dot beside the text does not survive being
         -- read at a glance, and the row background is free.
-        local function row(a, host, suffix)
+        local function row(a, host, suffix, visible)
             n = n + 1
             local blocked = a.agent_status == "blocked"
             local working = a.agent_status == "working"
@@ -218,6 +218,7 @@ return function(ctx)
                 },
                 click_script = string.format("%s; sketchybar --set herdr popup.drawing=off", focus),
             }
+            if visible == false then props.drawing = false end
             if blocked or working then
                 props.background = {
                     color = ctx.with_alpha(blocked and p.bad or p.accent, blocked and 0.17 or 0.13),
@@ -225,7 +226,7 @@ return function(ctx)
                     height = 20,
                 }
             end
-            sbar.add("item", "herdr.row." .. n, props)
+            return sbar.add("item", "herdr.row." .. n, props)
         end
 
         local entries = {}
@@ -298,20 +299,25 @@ return function(ctx)
                         padding_right = 14,
                     },
                 })
-                -- Deferred: re-rendering here would sbar.remove the item whose callback is
-                -- still running. The event lands after this returns.
+                -- Built whatever the state, then shown or hidden. Re-rendering instead
+                -- would sbar.remove the item under the pointer, and its mouse.exited.global
+                -- fires on the way out and shuts the popup — so expanding closed it.
+                local kids = {}
+                for _, e in ipairs(rest[key]) do
+                    kids[#kids + 1] = row(e.a, e.host, nil, open)
+                end
+
                 item:subscribe("mouse.clicked", function()
-                    expanded[key] = not open
-                    sbar.trigger("herdr_render")
+                    open = not open
+                    expanded[key] = open
+                    item:set({ icon = { string = open and "▾" or "▸" } })
+                    for _, kid in ipairs(kids) do kid:set({ drawing = open }) end
                 end)
-                -- These are the only popup items that take mouse events instead of a
+                -- These are the only popup items taking mouse events rather than a
                 -- click_script, so they capture the global exit the chip used to get.
                 item:subscribe("mouse.exited.global", function()
                     chip:set({ popup = { drawing = false } })
                 end)
-                if open then
-                    for _, e in ipairs(rest[key]) do row(e.a, e.host) end
-                end
             end
         end
 
