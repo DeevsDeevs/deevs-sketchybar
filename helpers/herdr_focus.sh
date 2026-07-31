@@ -16,6 +16,7 @@ export PATH="/usr/bin:/bin:$PATH"
 
 # No pane is legitimate: herdr_attach.sh calls this purely to raise the terminal.
 pane="${1:-}"
+tab="${2:-}"
 [ -n "$pane" ] && herdr agent focus "$pane" >/dev/null 2>&1
 
 app=""
@@ -60,8 +61,24 @@ fi
 # window. Needs Accessibility, which sketchybar already holds for the menus helper.
 if [ -n "$term_pid" ]; then
     osascript -e "tell application \"System Events\" to set frontmost of (first process whose unix id is $term_pid) to true" \
-        >/dev/null 2>&1 && exit 0
+        >/dev/null 2>&1
+else
+    [ -n "$app" ] && open -a "$app" 2>/dev/null
 fi
 
-[ -n "$app" ] && open -a "$app" 2>/dev/null
+# Raising the window shows whichever tab was already selected. herdr publishes no
+# title to the terminal and its tty is not in the accessibility tree, so there is
+# nothing to match a tab on — the index has to be configured.
+if [ -n "$tab" ] && [ -n "$term_pid" ]; then
+    osascript >/dev/null 2>&1 <<OSA
+tell application "System Events"
+  tell (first process whose unix id is $term_pid)
+    tell (first UI element of window 1 whose role is "AXTabGroup")
+      click radio button $tab
+    end tell
+  end tell
+end tell
+OSA
+fi
+
 exit 0

@@ -13,6 +13,7 @@ export PATH="/usr/bin:/bin:$PATH"
 
 host="${1:-}"
 pane="${2:-}"
+tab="${3:-}"
 [ -n "$host" ] || exit 0
 
 dir="$(cd "$(dirname "$0")" && pwd)"
@@ -36,4 +37,4 @@ else
         --env HERDR_REMOTE_HOST="$host" >/dev/null 2>&1
 fi
 
-exec "$dir/herdr_focus.sh"
+exec "$dir/herdr_focus.sh" "" "$tab"

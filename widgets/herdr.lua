@@ -195,10 +195,11 @@ return function(ctx)
             -- A remote pane has no local window to raise, so clicking one brings the
             -- session here instead of only moving focus on the far side.
             local focus = host.ssh
-                and string.format("%s %s %s", ctx.shell_quote(ctx.helper("herdr_attach.sh")),
-                    ctx.shell_quote(host.ssh), ctx.shell_quote(a.pane_id))
-                or string.format("%s %s", ctx.shell_quote(ctx.helper("herdr_focus.sh")),
-                    ctx.shell_quote(a.pane_id))
+                and string.format("%s %s %s %s", ctx.shell_quote(ctx.helper("herdr_attach.sh")),
+                    ctx.shell_quote(host.ssh), ctx.shell_quote(a.pane_id),
+                    ctx.shell_quote(conf.tab or ""))
+                or string.format("%s %s %s", ctx.shell_quote(ctx.helper("herdr_focus.sh")),
+                    ctx.shell_quote(a.pane_id), ctx.shell_quote(conf.tab or ""))
             local props = {
                 position = "popup." .. chip.name,
                 icon = {
