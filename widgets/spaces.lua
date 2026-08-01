@@ -6,30 +6,14 @@ return function(ctx)
 
     -- `spaces = true` is documented shorthand: indexing a boolean would kill the whole bar.
     local conf = type(c.spaces) == "table" and c.spaces or {}
-    local max = conf.max or 10
+    local max = conf.max or 20
     local show_icons = conf.icons ~= false
 
-    local function active_space_indices()
-        local handle = io.popen("yabai -m query --spaces 2>/dev/null")
-        local output = handle and handle:read("*a") or ""
-        if handle then handle:close() end
-        local indices, seen = {}, {}
-        for index in output:gmatch('"index"%s*:%s*(%d+)') do
-            local n = tonumber(index)
-            if n and not seen[n] then
-                table.insert(indices, n)
-                seen[n] = true
-            end
-        end
-        table.sort(indices)
-        if #indices == 0 then
-            for i = 1, max do table.insert(indices, i) end
-        end
-        while #indices > max do table.remove(indices) end
-        return indices
-    end
-
-    for _, i in ipairs(active_space_indices()) do
+    -- A pool, not a snapshot. sketchybar resolves each space item to the display owning
+    -- that mission control index and redraws when spaces are created or destroyed;
+    -- an item for a space that does not exist gets a sentinel display mask and stays
+    -- hidden. So spaces appear on the right bar with no rebuild and no yabai signal.
+    for i = 1, max do
         local ramp = p.mood or {}
         local accent = (c.mood and #ramp > 0) and ramp[((i - 1) % #ramp) + 1] or ctx.with_alpha(p.fg, 0.18)
         local space = sbar.add("space", "space." .. i, {

@@ -13,7 +13,7 @@ return {
     spaces = {
         enabled = true,
         icons = true,        -- per-space app icons
-        max = 10,
+        max = 20,            -- highest space index the bar can show; unused ones stay hidden
     },
 
     menus_swap = true,       -- click front app name: spaces ↔ app menus
