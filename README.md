@@ -87,8 +87,15 @@ configure twice. The chip shows the shortest unambiguous tail of the alias
 Clicking an agent jumps to it. A local one switches herdr to that pane, moves to
 the space its terminal is on, and raises that terminal — the exact process, since
 a terminal often runs several and activating the bundle picks the wrong one. A
-remote one focuses the agent on its host and attaches a local tab to that session,
-reusing the tab if one is already pointed there.
+remote one focuses the agent on its host and brings up that host's herdr, opening
+it in its own terminal window if it is not already running and raising the existing
+one if it is.
+
+That window is deliberately not a tab inside the local herdr. herdr refuses to
+start inside a herdr-managed pane — *"nested herdr is disabled by default"* — and
+the experimental flag that lifts the restriction would leave both sessions
+answering to the same prefix key, with no send-prefix binding to separate them. The
+window is found again by the title its wrapper stamps, since herdr sets none.
 
 When herdr shares a terminal window with other tabs, raising the window would land
 on whichever tab was last on top, so the click finds herdr's tab first. herdr

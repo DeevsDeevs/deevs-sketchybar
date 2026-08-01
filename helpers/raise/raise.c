@@ -85,10 +85,14 @@ int main(int argc, char **argv) {
     return 0;
   }
 
-  // Frontmost first: selecting a tab in a background app leaves you where you were.
-  ProcessSerialNumber psn;
-  if (GetProcessForPID(pid, &psn) == noErr)
-    SetFrontProcessWithOptions(&psn, kSetFrontProcessFrontWindowOnly);
+  // Selecting a tab in a background app leaves you where you were, so raising has
+  // to come first — except when searching by title across several processes, where
+  // raising a process that turns out not to have the tab would steal focus to it.
+  if (!(argc >= 4 && strcmp(argv[2], "--tab-titled") == 0)) {
+    ProcessSerialNumber psn;
+    if (GetProcessForPID(pid, &psn) == noErr)
+      SetFrontProcessWithOptions(&psn, kSetFrontProcessFrontWindowOnly);
+  }
 
   if (argc >= 4 && strcmp(argv[2], "--tab") == 0) {
     CFIndex want = (CFIndex)atoi(argv[3]) - 1;
@@ -118,6 +122,9 @@ int main(int argc, char **argv) {
       bool hit = CFStringCompare(title, want, 0) == kCFCompareEqualTo;
       CFRelease(title);
       if (hit) {
+        ProcessSerialNumber psn;
+        if (GetProcessForPID(pid, &psn) == noErr)
+          SetFrontProcessWithOptions(&psn, kSetFrontProcessFrontWindowOnly);
         AXUIElementPerformAction(tab, kAXPressAction);
         rc = 0;
         break;
