@@ -146,6 +146,20 @@ for name, members in pairs(ctx.clusters) do
     for _, member in ipairs(members) do all = all and active_items[member] end
     if all then chip:set(on_active) end
 end
+-- A popup belongs to the bar that opened it. Move focus to another display and the
+-- widget follows, leaving the popup behind as an empty frame nothing can close —
+-- the item it hangs off is no longer on that bar to receive the click or the exit.
+-- display_change fires whenever the active display changes, so shut them there.
+-- One message rather than one per item: this runs on every display switch.
+local popup_watch = sbar.add("item", { drawing = false, updates = true })
+popup_watch:subscribe("display_change", function()
+    local off = {}
+    for name in pairs(active_items) do
+        off[#off + 1] = string.format("--set %s popup.drawing=off", name)
+    end
+    if #off > 0 then sbar.exec("sketchybar " .. table.concat(off, " ")) end
+end)
+
 if structure.finish then structure.finish(ctx) end
 sbar.end_config()
 
