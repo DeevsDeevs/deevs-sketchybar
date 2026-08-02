@@ -36,7 +36,10 @@ end
 local raw_add = sbar.add
 function sbar.add(...)
     local item = raw_add(...)
-    if follows_active[ctx.current_widget] and type(item) == "table" and item.name then
+    -- `sbar.add("event", name)` hands back a name too, and setting a property on an
+    -- event just logs "Item not found" on every display switch.
+    if (...) ~= "event" and follows_active[ctx.current_widget]
+        and type(item) == "table" and item.name then
         active_items[item.name] = true
         sbar.set(item.name, on_active)
     end
@@ -150,14 +153,15 @@ end
 -- widget follows, leaving the popup behind as an empty frame nothing can close —
 -- the item it hangs off is no longer on that bar to receive the click or the exit.
 -- display_change fires whenever the active display changes, so shut them there.
--- One message rather than one per item: this runs on every display switch.
+--
+-- Set through the API, never by shelling out to the sketchybar CLI: invoked from
+-- inside the config process it finds the running instance's lock file and exits with
+-- "could not acquire lock-file" instead of delivering the message.
 local popup_watch = sbar.add("item", { drawing = false, updates = true })
 popup_watch:subscribe("display_change", function()
-    local off = {}
     for name in pairs(active_items) do
-        off[#off + 1] = string.format("--set %s popup.drawing=off", name)
+        sbar.set(name, { popup = { drawing = false } })
     end
-    if #off > 0 then sbar.exec("sketchybar " .. table.concat(off, " ")) end
 end)
 
 if structure.finish then structure.finish(ctx) end
