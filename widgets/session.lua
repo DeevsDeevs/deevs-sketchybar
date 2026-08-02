@@ -137,7 +137,7 @@ return function(ctx)
         if state ~= "running" then
             icon:set({ icon = { string = PIE[1], color = ctx.with_alpha(p.fg, 0.4) } })
         end
-        if not present then icon:set({ popup = { drawing = false } }) end
+        if not present then ctx.popup_close(icon) end
     end
 
     local function tick()
@@ -200,7 +200,7 @@ return function(ctx)
     icon:subscribe("system_woke", start_stream)
 
     local function open_popup()
-        icon:set({ popup = { drawing = "toggle" } })
+        ctx.popup_open(icon)
     end
 
     name:subscribe("routine", function()
@@ -213,7 +213,7 @@ return function(ctx)
         item:subscribe("mouse.exited", function() hover(false) end)
         item:subscribe("mouse.exited.global", function()
             hover(false)
-            icon:set({ popup = { drawing = false } })
+            ctx.popup_close(icon)
         end)
     end
 end

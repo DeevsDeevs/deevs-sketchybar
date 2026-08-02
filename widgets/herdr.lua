@@ -314,7 +314,7 @@ return function(ctx)
                 -- These are the only popup items taking mouse events rather than a
                 -- click_script, so they capture the global exit the chip used to get.
                 item:subscribe("mouse.exited.global", function()
-                    chip:set({ popup = { drawing = false } })
+                    ctx.popup_close(chip)
                 end)
             end
         end
@@ -350,11 +350,10 @@ return function(ctx)
     chip:subscribe("routine", poll)
     chip:subscribe("forced", poll)
     chip:subscribe("mouse.clicked", function()
-        render_popup()
-        chip:set({ popup = { drawing = "toggle" } })
+        ctx.popup_open(chip, render_popup)
     end)
     chip:subscribe("mouse.exited.global", function()
-        chip:set({ popup = { drawing = false } })
+        ctx.popup_close(chip)
     end)
 
     sbar.add("event", "herdr_render")

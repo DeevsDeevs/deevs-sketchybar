@@ -49,22 +49,19 @@ only has to be at least as high as your highest index, since indices are global
 and a second display's spaces sit at the end.
 
 Popups cannot be on both bars at once. An item gets **one** popup window with a
-single anchor, and every bar rewrites that anchor while the popup is open, so with
-two bars the dropdown opens on whichever redrew last, positioned in that bar's
-coordinates. Nothing in the click path records which bar was clicked, so it cannot
-simply follow the mouse.
+single anchor, every bar rewrites that anchor while the popup is open, and a popup
+only ever renders on the *active* display. Nothing in the click path records which
+bar was clicked, so it cannot follow the mouse either.
 
-Widgets that own a popup are therefore set to `display = active` and live on the
-display you are working on, moving with you. Opening one always works, because
-exactly one bar is laying it out. The whole widget travels, popup rows included —
-moving only the item that holds the popup leaves a chip with a hole in it, and
-leaving the rows behind opens an empty popup. Widgets without a popup — clock,
-weather, system, spaces — stay on every display, and a shared chip simply gets
-shorter on the display you are not using.
+Widgets therefore sit on every display as normal, and only for as long as a popup
+is open is that one widget held to the active display — leaving a single bar to lay
+it out, so the dropdown opens where you are working. Closing it puts the widget
+back on both bars. Nothing else is affected: a widget with no popup never moves.
 
-A widget that opens a popup declares it with `ctx.owns_popup()` on its first line.
-That is the only thing required; every item it adds afterwards, whenever it adds
-them, follows automatically.
+A widget that opens a popup declares it with `ctx.owns_popup()` on its first line
+and routes its own popup through `ctx.popup_open` / `ctx.popup_close`, or
+`ctx.popup_held` / `ctx.popup_released` if it drives the popup by shell. Every item
+it adds is tracked automatically, whenever it adds them.
 
 ### Widgets
 

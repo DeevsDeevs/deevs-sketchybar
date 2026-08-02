@@ -206,10 +206,10 @@ return function(ctx)
         cover:subscribe("mouse.entered", function() animate_detail(true) end)
         cover:subscribe("mouse.exited", function() animate_detail(false) end)
         cover:subscribe("mouse.clicked", function()
-            cover:set({ popup = { drawing = "toggle" } })
+            ctx.popup_open(cover)
         end)
         title:subscribe("mouse.exited.global", function()
-            cover:set({ popup = { drawing = false } })
+            ctx.popup_close(cover)
         end)
     else
         -- No cover means no hover target, so the text is permanently expanded.
@@ -285,7 +285,8 @@ return function(ctx)
         if not cover then return end
         if not drawing then
             animate_detail(false)
-            cover:set({ drawing = false, popup = { drawing = false } })
+            ctx.popup_close(cover)
+            cover:set({ drawing = false })
             has_art = nil
             return
         end
