@@ -50,6 +50,28 @@ return function(ctx)
     table.insert(ctx.groups.right, chip.name)
     local backdrop = ctx.chip("herdr.chip", { chip.name })
 
+    -- A red number on a 12pt chip is easy to walk past, so a blocked agent tints the
+    -- whole slab and breathes the glyph on top of it. Only while something is actually
+    -- waiting on you: a bar that moves all day stops meaning anything.
+    local ALERT_TINT, ALERT_REST = 0.18, 0.45
+    local alerting, lit = false, false
+    -- Its own item, because the chip polls herdr on `poll` seconds and a breath wants
+    -- to be one. The breath animates the chip and the tint is set flat on the bracket:
+    -- sbar.animate has no effect on a bracket's background, the colour simply stays put.
+    local pulse = sbar.add("item", "herdr.pulse", {
+        drawing = false,
+        updates = true,
+        update_freq = 1,
+    })
+    pulse:subscribe("routine", function()
+        if not alerting then return end
+        lit = not lit
+        sbar.animate("sin", 28, function()
+            local shade = lit and p.bad or ctx.with_alpha(p.bad, ALERT_REST)
+            chip:set({ icon = { color = shade }, label = { color = shade } })
+        end)
+    end)
+
     -- string.format, never `..`: concatenation drops an operand and builds
     -- `-o ConnectTimeout=4'host'`, which ssh rejects with empty stdout.
     local function over_ssh(host, args)
@@ -100,12 +122,28 @@ return function(ctx)
             count, color = working, p.accent
         end
 
+        -- Settle back in one step: leaving it mid-breath strands the slab on whatever
+        -- alpha the last frame happened to land on.
+        if (blocked > 0) ~= alerting then
+            alerting = blocked > 0
+            lit = false
+            backdrop:set({ background = {
+                color = alerting and ctx.with_alpha(p.bad, ALERT_TINT) or ctx.style.item_bg,
+            } })
+        end
+
         backdrop:set({ drawing = true })
-        chip:set({
+        local paint = {
             drawing = true,
-            icon = { string = glyph_of(lead and lead.agent), color = color },
-            label = { string = tostring(count), color = color },
-        })
+            icon = { string = glyph_of(lead and lead.agent) },
+            label = { string = tostring(count) },
+        }
+        -- While alerting the breath owns the colour; repainting it here would snap the
+        -- glyph back to full on every poll.
+        if not alerting then
+            paint.icon.color, paint.label.color = color, color
+        end
+        chip:set(paint)
     end
 
     -- Survives re-render so a group you opened stays open.
