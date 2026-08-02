@@ -12,97 +12,35 @@ local ctx = {
     clusters = {},
 }
 
-local has_popup, owner_of, items_of = {}, {}, {}
-local held = nil
+local follows_active, active_items = {}, {}
+local on_active = { associated_display = "active" }
 
--- Sketchybar gives an item a single popup window with a single anchor, and every bar
--- rewrites that anchor while the popup is open, so with two bars the dropdown lands
--- on whichever redrew last — the wrong display, in that bar's coordinates. Nothing in
--- the click path records which bar was clicked, so it cannot simply follow the mouse.
+-- Declared by every widget that owns a popup. Sketchybar gives an item a single
+-- popup window with a single anchor, and every bar rewrites that anchor while it is
+-- open, so with two bars the dropdown lands on whichever redrew last — the wrong
+-- display, in that bar's coordinates. `display = active` leaves exactly one bar
+-- laying the widget out, so the popup opens where you are working.
 --
--- Widgets therefore stay on every display, and only while a popup is open is its
--- widget held to the display the pointer is on, leaving one bar to lay it out. The
--- whole widget is held, popup rows included: holding only the item that owns the
--- popup leaves a chip with a hole in it, and leaving the rows behind opens it empty.
+-- The whole widget follows, not only the item holding the popup: session is
+-- icon+time+name and media is cover+artist+title, and moving one part alone leaves
+-- a chip with a hole in it. Its popup rows have to come too, or the popup opens
+-- empty. Widgets without a popup stay on every display.
 --
 -- Declared rather than detected from the "popup.<host>" rows: herdr builds its rows
 -- inside its click handler, so there is nothing to detect until the popup is already
 -- opening. Marking the widget instead catches every item it ever adds.
 function ctx.owns_popup()
-    if ctx.current_widget then has_popup[ctx.current_widget] = true end
+    if ctx.current_widget then follows_active[ctx.current_widget] = true end
 end
 
 local raw_add = sbar.add
 function sbar.add(...)
     local item = raw_add(...)
-    local owner = ctx.current_widget
-    if has_popup[owner] and type(item) == "table" and type(item.name) == "string" then
-        owner_of[item.name] = owner
-        items_of[owner] = items_of[owner] or {}
-        table.insert(items_of[owner], item.name)
+    if follows_active[ctx.current_widget] and type(item) == "table" and item.name then
+        active_items[item.name] = true
+        sbar.set(item.name, on_active)
     end
     return item
-end
-
--- "" clears the association, putting the widget back on every bar. Not "all", which
--- is valid for the bar but not for an item: it parses as 1 << strtoul("all") — a mask
--- for display zero — and silently hides whatever it is set on.
-local function hold(widget, display)
-    for _, name in ipairs(items_of[widget] or {}) do
-        sbar.set(name, { associated_display = display })
-    end
-end
-
-local function release()
-    if held then hold(held, "") end
-    held = nil
-end
-
--- Held to the active display, not to the pointer's: a popup only ever renders on the
--- active display. Holding one to the display under the mouse draws nothing at all
--- when you are working elsewhere — the popup opens, reports drawing=on, and never
--- appears on either bar.
-function ctx.popup_held(item)
-    local widget = owner_of[item.name]
-    if held and held ~= widget then release() end
-    held = widget
-    hold(widget, "active")
-end
-
--- `build` runs with the widget marked, so any row it creates now is held with the
--- rest of it.
-function ctx.popup_open(item, build)
-    if build then
-        ctx.current_widget = owner_of[item.name]
-        build()
-        ctx.current_widget = nil
-    end
-    ctx.popup_held(item)
-    item:set({ popup = { drawing = "toggle" } })
-end
-
--- A cluster bracket is built after every widget has loaded, so it has no owner of its
--- own; it takes the owner its members share, and only if they all share one.
-function ctx.adopt_chip(chip, members)
-    if #members == 0 then return end
-    local widget = owner_of[members[1]]
-    if not widget then return end
-    for _, member in ipairs(members) do
-        if owner_of[member] ~= widget then return end
-    end
-    owner_of[chip] = widget
-    table.insert(items_of[widget], chip)
-end
-
-function ctx.popup_close(item)
-    item:set({ popup = { drawing = false } })
-    ctx.popup_released(item)
-end
-
--- For widgets that open or close their popup by shell rather than through the Lua
--- item, so the hold is dropped even though nothing was set from here.
-function ctx.popup_released(item)
-    if held == owner_of[item.name] then release() end
 end
 
 function ctx.with_alpha(color, alpha)
@@ -201,10 +139,12 @@ sbar.begin_config()
 structure.apply(ctx)
 require("widgets.init").load(ctx)
 for name, members in pairs(ctx.clusters) do
-    ctx.chip(name .. ".chip", members)
-    -- A cluster bracket belongs to no widget, so it joins one only when every member
-    -- does; otherwise it stays to frame the members that are not going anywhere.
-    ctx.adopt_chip(name .. ".chip", members)
+    local chip = ctx.chip(name .. ".chip", members)
+    -- A cluster bracket belongs to no widget, so it follows its members: it travels
+    -- only when all of them do, and otherwise stays put to frame what is left.
+    local all = #members > 0
+    for _, member in ipairs(members) do all = all and active_items[member] end
+    if all then chip:set(on_active) end
 end
 if structure.finish then structure.finish(ctx) end
 sbar.end_config()

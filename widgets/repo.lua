@@ -132,7 +132,7 @@ return function(ctx)
             label = { string = "—", width = 300, align = "left" },
         })
         rows[key]:subscribe("mouse.clicked", function()
-            ctx.popup_close(repo)
+            repo:set({ popup = { drawing = false } })
             local action = actions[key]
             if action then sbar.exec(action()) end
         end)
@@ -303,11 +303,11 @@ return function(ctx)
 
     -- No click_script: an item with one never forwards mouse events to lua.
     repo:subscribe("mouse.clicked", function()
-        ctx.popup_open(repo)
+        repo:set({ popup = { drawing = "toggle" } })
         refresh()
     end)
     repo:subscribe("mouse.exited.global", function()
-        ctx.popup_close(repo)
+        repo:set({ popup = { drawing = false } })
     end)
 
     if not pinned then

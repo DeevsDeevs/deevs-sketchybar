@@ -205,11 +205,11 @@ return function(ctx)
     refresh()
 
     servers:subscribe("mouse.clicked", function()
-        ctx.popup_open(servers)
+        servers:set({ popup = { drawing = "toggle" } })
         refresh()
     end)
     servers:subscribe("mouse.exited.global", function()
-        ctx.popup_close(servers)
+        servers:set({ popup = { drawing = false } })
     end)
 
     -- Last, after the mouse subscriptions: subscribing an item to mouse events *after* a

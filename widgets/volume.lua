@@ -69,7 +69,6 @@ return function(ctx)
     local function close_popup()
         sbar.exec("sketchybar --set " .. volume.name .. " popup.drawing=off"
             .. " --remove '/volume.device\\..*/' >/dev/null 2>&1")
-        ctx.popup_released(volume)
     end
 
     volume:subscribe("mouse.clicked", function(env)
@@ -77,7 +76,6 @@ return function(ctx)
             sbar.exec("open /System/Library/PreferencePanes/Sound.prefpane")
             return
         end
-        ctx.popup_held(volume)
         sbar.exec(popup_script)
     end)
 
