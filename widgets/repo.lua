@@ -1,5 +1,6 @@
 -- Nothing outside the shell can tell which terminal pane has focus; a zsh chpwd/precmd hook pushes the cwd (--trigger repo_cwd RPATH="$PWD").
 return function(ctx)
+    ctx.owns_popup()
     local p = ctx.palette
     local cfg = type(ctx.config.repo) == "table" and ctx.config.repo or {}
 

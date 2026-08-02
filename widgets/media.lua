@@ -1,5 +1,6 @@
 -- media_change is a RESERVED sketchybar event name (triggers on it are silently swallowed), hence media_update.
 return function(ctx)
+    ctx.owns_popup()
     local p, c = ctx.palette, ctx.config
     local media = type(c.media) == "table" and c.media or {}
     local whitelist = media.whitelist or {

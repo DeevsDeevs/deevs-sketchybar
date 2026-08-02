@@ -1,5 +1,6 @@
 -- No menubar alias: a hidden menubar item aliases as a blank region; state comes from session_stream.sh instead.
 return function(ctx)
+    ctx.owns_popup()
     local p = ctx.palette
 
     -- Progress lives in the icon: background.clip only applies to images and a slider claims its own slot.

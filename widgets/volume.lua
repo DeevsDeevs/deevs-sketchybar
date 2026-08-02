@@ -1,4 +1,5 @@
 return function(ctx)
+    ctx.owns_popup()
     local p = ctx.palette
     local hex = function(color) return string.format("0x%08x", color) end
     local helper = ctx.shell_quote(ctx.helper("audio_devices/bin/audio_devices"))

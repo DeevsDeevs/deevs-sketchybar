@@ -50,8 +50,13 @@ Popups are the part that needs a choice. Sketchybar gives an item **one** popup
 window with a single anchor, and every bar rewrites that anchor while the popup is
 open — so with two bars the dropdown opens on whichever redrew last, positioned
 in that bar's coordinates. Setting `popup_display` keeps the widgets that own a
-popup on one display, leaving a single bar to lay them out. Widgets without a
-popup — clock, weather, system, session — stay on every display either way.
+popup on one display, leaving a single bar to lay them out. A whole widget moves,
+not just the item holding the popup, so nothing is left behind as a chip with a
+hole in it. Widgets without a popup — clock, weather, system — stay on every
+display either way, and a shared chip simply gets shorter.
+
+A widget that opens a popup declares it with `ctx.owns_popup()` on its first
+line; that is the only thing `popup_display` needs from it.
 
 ### Widgets
 

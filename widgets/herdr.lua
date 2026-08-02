@@ -1,4 +1,5 @@
 return function(ctx)
+    ctx.owns_popup()
     local p = ctx.palette
     local conf = type(ctx.config.herdr) == "table" and ctx.config.herdr or {}
     local fixed, follows = ctx.host_of(conf)

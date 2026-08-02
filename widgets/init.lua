@@ -10,14 +10,22 @@ end
 function M.load(ctx)
     local c = ctx.config
 
-    require("widgets.brand")(ctx)
-    if on(c.spaces) then require("widgets.spaces")(ctx) end
-    require("widgets.front_app")(ctx)
+    -- Names every item a widget creates, so `popup_display` can move a whole widget
+    -- rather than the single item that happens to own the popup.
+    local function load(name)
+        ctx.current_widget = name
+        require("widgets." .. name)(ctx)
+        ctx.current_widget = nil
+    end
+
+    load("brand")
+    if on(c.spaces) then load("spaces") end
+    load("front_app")
 
     -- media with side = "left" belongs to this group, so it must not also be given a
     -- right-hand spacer below.
     local media_left = on(c.media) and type(c.media) == "table" and c.media.side == "left"
-    if media_left then require("widgets.media")(ctx) end
+    if media_left then load("media") end
 
     -- Right-position items lay out RIGHT-TO-LEFT in creation order.
     local drawn = false
@@ -30,7 +38,7 @@ function M.load(ctx)
             if on(c[name]) then
                 local spacer = (drew and sep) and ctx.gap(sep) or nil
                 local mark = #ctx.groups.right
-                require("widgets." .. name)(ctx)
+                load(name)
                 if #ctx.groups.right > mark then drew = true else ctx.ungap(spacer) end
             end
         end

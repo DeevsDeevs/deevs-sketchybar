@@ -1,4 +1,5 @@
 return function(ctx)
+    ctx.owns_popup()
     local p = ctx.palette
 
     local battery = sbar.add("item", "widgets.battery", {

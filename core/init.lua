@@ -12,28 +12,39 @@ local ctx = {
     clusters = {},
 }
 
--- An item's popup is a single window with a single anchor, and every display's bar
--- rewrites that anchor while it is open — so on two displays the popup lands on
--- whichever bar redrew last, in that bar's coordinates. Pinning the hosts to one
--- display leaves only one bar laying them out. Hosts are discovered rather than
--- listed: a popup row is always added with position "popup.<host>".
-local pinned, popup_display = {}, tonumber(config.popup_display)
+local popup_display = tonumber(config.popup_display)
+local mask = popup_display and (1 << (popup_display - 1))
+local pinned_widget, pinned_item = {}, {}
+
+local function pin(name)
+    pinned_item[name] = true
+    sbar.set(name, { associated_display = mask })
+end
+
+-- Declared by every widget that owns a popup. Sketchybar gives an item a single
+-- popup window with a single anchor, and every bar rewrites that anchor while it is
+-- open, so on two displays the dropdown lands on whichever bar redrew last. Keeping
+-- the widget on one display leaves one bar to lay it out.
+--
+-- The whole widget moves, not only the item holding the popup: session is
+-- icon+time+name and media is cover+artist+title, so moving one part leaves a chip
+-- with a hole in it. Not the enclosing bracket either — `status` pools calendar,
+-- battery, volume and weather, and that would drag the clock off the other display.
+--
+-- Declared rather than detected from the "popup.<host>" rows: herdr builds its rows
+-- on click, so there is nothing to detect until after the popup has already opened.
+function ctx.owns_popup()
+    if mask and ctx.current_widget then pinned_widget[ctx.current_widget] = true end
+end
+
 local raw_add = sbar.add
 function sbar.add(...)
-    if popup_display then
-        for _, arg in ipairs(table.pack(...)) do
-            if type(arg) == "table" and type(arg.position) == "string" then
-                local host = arg.position:match("^popup%.(.+)$")
-                -- Pin on sight, not after the config runs: widgets that build their
-                -- popup from arriving data add rows long after end_config().
-                if host and not pinned[host] then
-                    pinned[host] = true
-                    sbar.set(host, { associated_display = 1 << (popup_display - 1) })
-                end
-            end
-        end
+    local item = raw_add(...)
+    if pinned_widget[ctx.current_widget]
+        and type(item) == "table" and type(item.name) == "string" then
+        pin(item.name)
     end
-    return raw_add(...)
+    return item
 end
 
 function ctx.with_alpha(color, alpha)
@@ -131,7 +142,14 @@ ctx.style = structure.style(ctx)
 sbar.begin_config()
 structure.apply(ctx)
 require("widgets.init").load(ctx)
-for name, members in pairs(ctx.clusters) do ctx.chip(name .. ".chip", members) end
+for name, members in pairs(ctx.clusters) do
+    ctx.chip(name .. ".chip", members)
+    -- A cluster bracket belongs to no single widget, so it follows its members: it
+    -- moves only when all of them did, and otherwise stays to frame what is left.
+    local all = mask and #members > 0
+    for _, member in ipairs(members) do all = all and pinned_item[member] end
+    if all then pin(name .. ".chip") end
+end
 if structure.finish then structure.finish(ctx) end
 sbar.end_config()
 

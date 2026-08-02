@@ -20,6 +20,7 @@ wait
 } | sort -n]]
 
 return function(ctx)
+    ctx.owns_popup()
     local p = ctx.palette
     local cfg = ctx.config.servers or {}
     local idle = ctx.with_alpha(p.fg, 0.25)
