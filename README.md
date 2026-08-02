@@ -37,6 +37,21 @@ rather than sitting there empty.
 | `chips` | rounded slab behind each widget group | `true` · `false` for a flat row |
 | `bar` | `height`, `icon` | `icon` is the leftmost glyph |
 | `mood` | per-workspace accent colours | `true` · `false` |
+| `popup_display` | display that keeps the widgets owning a popup | display index, or `nil` for all |
+
+### More than one display
+
+Space chips need no setup — sketchybar resolves each one to the display owning
+that mission control index, so every display shows its own. `spaces.max` only has
+to be at least as high as your highest index, since indices are global and a
+second display's spaces sit at the end.
+
+Popups are the part that needs a choice. Sketchybar gives an item **one** popup
+window with a single anchor, and every bar rewrites that anchor while the popup is
+open — so with two bars the dropdown opens on whichever redrew last, positioned
+in that bar's coordinates. Setting `popup_display` keeps the widgets that own a
+popup on one display, leaving a single bar to lay them out. Widgets without a
+popup — clock, weather, system, session — stay on every display either way.
 
 ### Widgets
 

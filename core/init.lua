@@ -12,6 +12,30 @@ local ctx = {
     clusters = {},
 }
 
+-- An item's popup is a single window with a single anchor, and every display's bar
+-- rewrites that anchor while it is open — so on two displays the popup lands on
+-- whichever bar redrew last, in that bar's coordinates. Pinning the hosts to one
+-- display leaves only one bar laying them out. Hosts are discovered rather than
+-- listed: a popup row is always added with position "popup.<host>".
+local pinned, popup_display = {}, tonumber(config.popup_display)
+local raw_add = sbar.add
+function sbar.add(...)
+    if popup_display then
+        for _, arg in ipairs(table.pack(...)) do
+            if type(arg) == "table" and type(arg.position) == "string" then
+                local host = arg.position:match("^popup%.(.+)$")
+                -- Pin on sight, not after the config runs: widgets that build their
+                -- popup from arriving data add rows long after end_config().
+                if host and not pinned[host] then
+                    pinned[host] = true
+                    sbar.set(host, { associated_display = 1 << (popup_display - 1) })
+                end
+            end
+        end
+    end
+    return raw_add(...)
+end
+
 function ctx.with_alpha(color, alpha)
     if alpha > 1.0 or alpha < 0.0 then return color end
     return (color & 0x00ffffff) | (math.floor(alpha * 255.0) << 24)

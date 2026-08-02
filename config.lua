@@ -5,6 +5,11 @@ return {
     glass     = 0.66,        -- bar translucency 0..1 (1 = opaque)
     chips     = true,        -- rounded slab behind every widget; false = flat row
 
+    -- Multi-display only: keep widgets that own a popup on this display (1 = built-in).
+    -- Sketchybar gives an item a single popup window, so on two bars the dropdown
+    -- opens on whichever redrew last. nil = leave them on every display.
+    popup_display = 1,
+
     bar = {
         height = 40,
         icon = "󰌪",          -- leftmost glyph; "" for the classic
