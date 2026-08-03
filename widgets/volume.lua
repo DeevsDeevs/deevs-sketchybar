@@ -4,9 +4,10 @@ return function(ctx)
     local hex = function(color) return string.format("0x%08x", color) end
     local helper = ctx.shell_quote(ctx.helper("audio_devices/bin/audio_devices"))
     local auto_route = (ctx.config.audio or {}).auto_route
-    local popup_script = "LABEL_ON=" .. hex(p.fg) .. " LABEL_OFF=" .. hex(ctx.with_alpha(p.fg, 0.45))
-        .. (auto_route and " ROUTE_FLAG=--route" or "")
-        .. " " .. ctx.shell_quote(ctx.helper("volume_popup.sh"))
+    local popup_script = string.format("LABEL_ON=%s LABEL_OFF=%s%s %s",
+        hex(p.fg), hex(ctx.with_alpha(p.fg, 0.45)),
+        auto_route and " ROUTE_FLAG=--route" or "",
+        ctx.shell_quote(ctx.helper("volume_popup.sh")))
 
     -- No click_script: an item with one never forwards mouse events to lua, so mouse.exited.global would never fire.
     local volume = sbar.add("item", "widgets.volume", {
@@ -27,7 +28,7 @@ return function(ctx)
             knob = { string = "\u{f0028}", drawing = true, color = p.accent },
         },
         background = { color = p.transparent },
-        click_script = helper .. ' volume $PERCENTAGE',
+        click_script = string.format("%s volume $PERCENTAGE", helper),
     })
 
     local function render(vol)
@@ -41,7 +42,7 @@ return function(ctx)
     end
 
     local function refresh()
-        sbar.exec(helper .. " volume", function(out)
+        sbar.exec(string.format("%s volume", helper), function(out)
             render(tonumber(tostring(out):match("%d+")))
         end)
     end
@@ -55,12 +56,12 @@ return function(ctx)
     volume:subscribe("mouse.scrolled", function(env)
         local delta = env.INFO.delta
         if not (env.INFO.modifier == "ctrl") then delta = delta * 10.0 end
-        sbar.exec(helper .. " volume " .. (delta > 0 and "+" or "") .. math.floor(delta), refresh)
+        sbar.exec(string.format("%s volume %s%d", helper, delta > 0 and "+" or "", math.floor(delta)), refresh)
     end)
     -- Reap and spawn in ONE shell: as two execs the pkill can land after the spawn and kill the tap it was meant to replace.
     local reap = "pkill -x volume_keys >/dev/null 2>&1"
     if (ctx.config.audio or {}).volume_keys then
-        sbar.exec(reap .. "; " .. ctx.detached(ctx.shell_quote(ctx.helper("volume_keys/bin/volume_keys"))))
+        sbar.exec(string.format("%s; %s", reap, ctx.detached(ctx.shell_quote(ctx.helper("volume_keys/bin/volume_keys")))))
     else
         sbar.exec(reap)
     end
