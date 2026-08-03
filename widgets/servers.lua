@@ -55,8 +55,8 @@ return function(ctx)
     end
     if #hosts == 0 then return end
 
-    -- Before "local" joins the list: herdr reads this to watch hosts it is not showing,
-    -- and every entry there has to be something ssh can reach.
+    -- herdr reads this to watch hosts it is not currently showing. The same table, not a
+    -- copy, so the "local" entry inserted below shows up there too.
     ctx.server_hosts = hosts
 
     -- Selector mode: the chip names one target instead of reporting every host at once.

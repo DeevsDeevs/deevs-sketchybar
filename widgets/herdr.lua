@@ -26,12 +26,20 @@ return function(ctx)
         if not target or not conf.watch then return {} end
         local aliases = conf.watch
         if aliases == true then
-            aliases = {}
-            for _, h in ipairs(ctx.server_hosts or {}) do aliases[#aliases + 1] = h.alias end
+            -- This machine is a host like any other: select a server and the agents
+            -- waiting here are exactly the ones that go quiet. Named outright because
+            -- the servers list only carries a "local" entry in selector mode.
+            aliases = { "local" }
+            for _, h in ipairs(ctx.server_hosts or {}) do
+                if h.alias ~= "local" then aliases[#aliases + 1] = h.alias end
+            end
         end
         local out = {}
         for _, alias in ipairs(aliases) do
-            if alias ~= target then out[#out + 1] = { name = alias, ssh = alias } end
+            -- No ssh field means run herdr here, which is what host_cmd branches on.
+            if alias ~= target then
+                out[#out + 1] = { name = alias, ssh = alias ~= "local" and alias or nil }
+            end
         end
         return out
     end
@@ -307,7 +315,7 @@ return function(ctx)
         -- it are a poll away on the far side — so clicking retargets the bar to go look.
         local away = {}
         for _, h in ipairs(watched()) do
-            local blocked = blocked_away[h.ssh] or 0
+            local blocked = blocked_away[h.name] or 0
             if blocked > 0 then away[#away + 1] = { host = h, blocked = blocked } end
         end
         if #away > 0 then
@@ -321,7 +329,7 @@ return function(ctx)
                     icon = { string = "◆", color = p.bad, font = { size = 9.0 },
                         padding_left = 12, padding_right = 7 },
                     label = {
-                        string = string.format("%s   %d", e.host.name or e.host.ssh, e.blocked),
+                        string = string.format("%s   %d", e.host.name, e.blocked),
                         color = p.fg,
                         font = { size = 11.0 },
                         padding_left = 0,
@@ -333,7 +341,7 @@ return function(ctx)
                     -- while it follows: pinned to one host, the row has nowhere to send you.
                     click_script = follows and string.format(
                         "sketchybar --set herdr popup.drawing=off --trigger host_change HOST=%s",
-                        ctx.shell_quote(e.host.ssh)) or nil,
+                        ctx.shell_quote(e.host.name)) or nil,
                 })
             end
         end
@@ -449,7 +457,7 @@ return function(ctx)
     -- counted off the chip's routine rather than paying for a second timer item.
     local function poll_away()
         for _, host in ipairs(watched()) do
-            local alias, mine = host.ssh, epoch
+            local alias, mine = host.name, epoch
             sbar.exec(host_cmd(host), function(result)
                 if mine ~= epoch then return end
                 local agents = type(result) == "table" and result.result and result.result.agents
