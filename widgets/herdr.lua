@@ -229,7 +229,33 @@ return function(ctx)
         return clip(title, 38)
     end
 
+    -- Everything the popup draws, in one string. Rebuilding it costs about 25 items on
+    -- the wire and blocks the bar while it happens, and most opens follow a poll that
+    -- changed nothing — so an identical fleet skips the rebuild and reuses the rows that
+    -- are already there. Expanded groups are left out on purpose: their click handler
+    -- flips the rows it already built, so the state on screen is right either way.
+    local function signature()
+        local parts = {}
+        for _, host in ipairs(hosts) do
+            parts[#parts + 1] = host.name
+            for _, a in ipairs(fleet[host.name] or {}) do
+                parts[#parts + 1] = string.format("%s|%s|%s|%s|%s|%s",
+                    tostring(a.agent), tostring(a.agent_status), tostring(a.cwd),
+                    tostring(a.pane_id), tostring(a.focused),
+                    tostring(a.terminal_title_stripped or a.terminal_title))
+            end
+        end
+        for _, host in ipairs(watched()) do
+            parts[#parts + 1] = string.format("%s=%d", host.name, blocked_away[host.name] or 0)
+        end
+        return table.concat(parts, "\n")
+    end
+
+    local drawn_signature
     local function render_popup()
+        local current = signature()
+        if current == drawn_signature then return end
+        drawn_signature = current
         sbar.remove("/herdr\\.row\\..*/")
         local n = 0
         local multi = #hosts > 1
