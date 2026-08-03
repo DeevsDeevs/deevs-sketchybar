@@ -46,6 +46,8 @@ fi
 
 remote_path="$(ssh_run '$SHELL -ic "command -v herdr"' | tr -d '\r' | head -1)"
 [ -n "$remote_path" ] || exit 1
-printf '%s\n' "$remote_path" > "$cache"
+# Atomic: a plain `>` truncates first, and a concurrent poll reading right then gets an
+# empty path and falls back to the slow resolve.
+printf '%s\n' "$remote_path" > "$cache.$$" && mv -f "$cache.$$" "$cache"
 
 ssh_run "$remote_path$quoted"
