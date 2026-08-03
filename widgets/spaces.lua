@@ -9,6 +9,19 @@ return function(ctx)
     local max = conf.max or 20
     local show_icons = conf.icons ~= false
 
+    -- Repainting an item that already looks right still costs a message, and a space
+    -- change is delivered to every space item, so the redundant ones are dropped here.
+    local function highlight(index, selected)
+        local entry = spaces[index]
+        if not entry or entry.selected == selected then return end
+        entry.selected = selected
+        entry.item:set({
+            icon = { highlight = selected },
+            label = { highlight = selected },
+            background = { color = selected and entry.accent or p.transparent },
+        })
+    end
+
     -- A pool, not a snapshot. sketchybar resolves each space item to the display owning
     -- that mission control index and redraws when spaces are created or destroyed;
     -- an item for a space that does not exist gets a sentinel display mask and stays
@@ -39,33 +52,55 @@ return function(ctx)
             },
             background = { color = p.transparent, height = style.item_height, corner_radius = style.item_radius },
         })
-        spaces[i] = { item = space, accent = accent }
+        -- Seeded to match how the item was just built, so the sweep of space_change
+        -- events at startup only touches the one space that is actually selected.
+        spaces[i] = { item = space, accent = accent, selected = false }
 
+        -- Every space item hears every space change, so a switch used to redraw all of
+        -- them when only two ever differ: the one being left and the one being entered.
         space:subscribe("space_change", function(env)
-            local selected = env.SELECTED == "true"
-            space:set({
-                icon = { highlight = selected },
-                label = { highlight = selected },
-                background = { color = selected and accent or p.transparent },
-            })
+            highlight(i, env.SELECTED == "true")
         end)
 
+        -- string.format, never `..`: concatenation can drop an operand here and build a
+        -- `yabai -m space --focus` with no argument.
         space:subscribe("mouse.clicked", function(env)
-            sbar.exec("yabai -m space --focus " .. env.SID)
+            sbar.exec(string.format("yabai -m space --focus %s", env.SID))
         end)
     end
 
     local observer = sbar.add("item", { drawing = false, updates = true })
+    -- One trigger fans out to a call per space, so a single window opening costs a full
+    -- sweep of them. Both halves of that are answered here: the icons are built into a
+    -- stable string, and an unchanged one is dropped before it becomes a message.
     observer:subscribe("space_windows_change", function(env)
-        local icon_line = ""
-        local no_app = true
-        for app in pairs(env.INFO.apps) do
-            no_app = false
-            icon_line = icon_line .. (app_icons[app] or app_icons["Default"])
-        end
-        if no_app then icon_line = "—" end
         local entry = spaces[tonumber(env.INFO.space)]
-        if entry then entry.item:set({ label = icon_line }) end
+        if not entry then return end
+
+        -- Sorted, because `pairs` order is not stable: the same set of apps could hash
+        -- into a different order on the next event, which both shuffles the icons on
+        -- screen and defeats the comparison below.
+        local names = {}
+        for app in pairs(env.INFO.apps) do names[#names + 1] = app end
+        table.sort(names)
+
+        local icons = {}
+        for i, app in ipairs(names) do icons[i] = app_icons[app] or app_icons["Default"] end
+        local icon_line = #icons > 0 and table.concat(icons) or "—"
+
+        if entry.icon_line == icon_line then return end
+        entry.icon_line = icon_line
+        entry.item:set({ label = icon_line })
+    end)
+
+    -- Nothing looks selected after a reload: space_change is only sent when a space
+    -- actually changes, and `--trigger space_change` carries no SELECTED to act on. So
+    -- ask yabai once for the space each display is showing and light those.
+    sbar.exec("yabai -m query --spaces 2>/dev/null", function(result)
+        if type(result) ~= "table" then return end
+        for _, space in ipairs(result) do
+            if space["is-visible"] then highlight(tonumber(space.index), true) end
+        end
     end)
 
     for i, entry in pairs(spaces) do
