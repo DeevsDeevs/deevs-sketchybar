@@ -9,12 +9,13 @@ return function(ctx)
     local max = conf.max or 20
     local show_icons = conf.icons ~= false
 
-    -- Repainting an item that already looks right still costs a message, and a space
-    -- change is delivered to every space item, so the redundant ones are dropped here.
+    -- Deliberately unconditional. Skipping the repaints that look redundant measured no
+    -- cheaper — the cost of a space event is sketchybar's own window enumeration, not
+    -- these messages — and it meant trusting a cached idea of what each item looks like,
+    -- which sketchybar can invalidate itself when spaces are created or destroyed.
     local function highlight(index, selected)
         local entry = spaces[index]
-        if not entry or entry.selected == selected then return end
-        entry.selected = selected
+        if not entry then return end
         entry.item:set({
             icon = { highlight = selected },
             label = { highlight = selected },
@@ -52,9 +53,7 @@ return function(ctx)
             },
             background = { color = p.transparent, height = style.item_height, corner_radius = style.item_radius },
         })
-        -- Seeded to match how the item was just built, so the sweep of space_change
-        -- events at startup only touches the one space that is actually selected.
-        spaces[i] = { item = space, accent = accent, selected = false }
+        spaces[i] = { item = space, accent = accent }
 
         -- Every space item hears every space change, so a switch used to redraw all of
         -- them when only two ever differ: the one being left and the one being entered.
