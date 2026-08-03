@@ -91,19 +91,44 @@ static AudioDeviceID target_device(bool* routed) {
   return main != kAudioObjectUnknown ? main : current;
 }
 
-static bool volume_address(AudioDeviceID device, AudioObjectPropertyAddress* address) {
-  const AudioObjectPropertyAddress candidates[3] = {
-    { kAudioDevicePropertyVolumeScalar, kAudioDevicePropertyScopeOutput, kAudioObjectPropertyElementMain },
-    { kAudioDevicePropertyVolumeScalar, kAudioDevicePropertyScopeOutput, 1 },
-    { kAudioDevicePropertyVolumeScalar, kAudioDevicePropertyScopeOutput, 2 },
-  };
-  for (int i = 0; i < 3; ++i) {
-    if (AudioObjectHasProperty(device, &candidates[i])) {
-      *address = candidates[i];
-      return true;
+#define MAX_VOLUME_ELEMENTS 8
+
+// A device exposes either one master control or one per channel, and taking the
+// first that exists leaves the rest untouched: a headset without a master ends up
+// with its left channel following the keys and its right stuck wherever it was.
+static UInt32 volume_addresses(AudioDeviceID device, AudioObjectPropertyAddress* out) {
+  AudioObjectPropertyAddress master = { kAudioDevicePropertyVolumeScalar,
+                                        kAudioDevicePropertyScopeOutput,
+                                        kAudioObjectPropertyElementMain };
+  if (AudioObjectHasProperty(device, &master)) {
+    out[0] = master;
+    return 1;
+  }
+
+  UInt32 count = 0;
+  for (AudioObjectPropertyElement channel = 1;
+       channel <= MAX_VOLUME_ELEMENTS && count < MAX_VOLUME_ELEMENTS; ++channel) {
+    AudioObjectPropertyAddress candidate = { kAudioDevicePropertyVolumeScalar,
+                                             kAudioDevicePropertyScopeOutput, channel };
+    if (AudioObjectHasProperty(device, &candidate)) out[count++] = candidate;
+  }
+  return count;
+}
+
+// The loudest channel: what you can actually hear, and the level the next keypress
+// should step from.
+static Float32 read_volume(AudioDeviceID device, const AudioObjectPropertyAddress* addresses,
+                           UInt32 count) {
+  Float32 loudest = -1.0f;
+  for (UInt32 i = 0; i < count; ++i) {
+    Float32 value = 0;
+    UInt32 size = sizeof(value);
+    if (AudioObjectGetPropertyData(device, &addresses[i], 0, NULL, &size, &value) == noErr
+        && value > loudest) {
+      loudest = value;
     }
   }
-  return false;
+  return loudest;
 }
 
 // macOS draws its volume HUD from a private XPC service. Since we consume the
@@ -160,18 +185,20 @@ static void notify_bar(int percent) {
 static void adjust_volume(int direction, bool fine) {
   bool routed = false;
   AudioDeviceID device = target_device(&routed);
-  AudioObjectPropertyAddress address;
-  if (device == kAudioObjectUnknown || !volume_address(device, &address)) return;
+  AudioObjectPropertyAddress addresses[MAX_VOLUME_ELEMENTS];
+  UInt32 count = device == kAudioObjectUnknown ? 0 : volume_addresses(device, addresses);
+  if (count == 0) return;
 
-  Float32 value = 0;
-  UInt32 size = sizeof(value);
-  if (AudioObjectGetPropertyData(device, &address, 0, NULL, &size, &value) != noErr) return;
+  Float32 value = read_volume(device, addresses, count);
+  if (value < 0.0f) return;
 
   Float32 step = fine ? VOLUME_STEP / 4.0f : VOLUME_STEP;
   value += step * (Float32)direction;
   if (value < 0.0f) value = 0.0f;
   if (value > 1.0f) value = 1.0f;
-  AudioObjectSetPropertyData(device, &address, 0, NULL, sizeof(value), &value);
+  for (UInt32 i = 0; i < count; ++i) {
+    AudioObjectSetPropertyData(device, &addresses[i], 0, NULL, sizeof(value), &value);
+  }
 
   AudioObjectPropertyAddress mute = { kAudioDevicePropertyMute, kAudioDevicePropertyScopeOutput,
                                       kAudioObjectPropertyElementMain };
@@ -201,11 +228,10 @@ static void toggle_mute(void) {
     show_osd(0.0f, true);
     notify_bar(0);
   } else {
-    AudioObjectPropertyAddress address;
-    Float32 value = 0;
-    UInt32 vsize = sizeof(value);
-    if (volume_address(device, &address) &&
-        AudioObjectGetPropertyData(device, &address, 0, NULL, &vsize, &value) == noErr) {
+    AudioObjectPropertyAddress addresses[MAX_VOLUME_ELEMENTS];
+    UInt32 count = volume_addresses(device, addresses);
+    Float32 value = read_volume(device, addresses, count);
+    if (value >= 0.0f) {
       show_osd(value, false);
       notify_bar((int)(value * 100.0f + 0.5f));
     }

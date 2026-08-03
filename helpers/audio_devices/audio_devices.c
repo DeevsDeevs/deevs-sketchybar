@@ -226,29 +226,46 @@ static AudioDeviceID effective_output_device(void) {
   return current;
 }
 
-static bool volume_address(AudioDeviceID device, AudioObjectPropertyAddress* address) {
-  const AudioObjectPropertyAddress candidates[3] = {
-    { kAudioDevicePropertyVolumeScalar, kAudioDevicePropertyScopeOutput,
-      kAudioObjectPropertyElementMain },
-    { kAudioDevicePropertyVolumeScalar, kAudioDevicePropertyScopeOutput, 1 },
-    { kAudioDevicePropertyVolumeScalar, kAudioDevicePropertyScopeOutput, 2 },
-  };
-  for (size_t i = 0; i < 3; ++i) {
-    if (AudioObjectHasProperty(device, &candidates[i])) {
-      *address = candidates[i];
-      return true;
-    }
+#define MAX_VOLUME_ELEMENTS 8
+
+// A device exposes either one master control or one per channel, and taking the
+// first that exists leaves every other channel untouched: this Sony headset has no
+// master, so the left channel followed the bar down to 0 while the right stayed at
+// 1.0 and kept playing. Always drive them all.
+static UInt32 volume_addresses(AudioDeviceID device, AudioObjectPropertyAddress* out) {
+  AudioObjectPropertyAddress master = { kAudioDevicePropertyVolumeScalar,
+                                        kAudioDevicePropertyScopeOutput,
+                                        kAudioObjectPropertyElementMain };
+  if (AudioObjectHasProperty(device, &master)) {
+    out[0] = master;
+    return 1;
   }
-  return false;
+
+  UInt32 count = 0;
+  for (AudioObjectPropertyElement channel = 1;
+       channel <= MAX_VOLUME_ELEMENTS && count < MAX_VOLUME_ELEMENTS; ++channel) {
+    AudioObjectPropertyAddress candidate = { kAudioDevicePropertyVolumeScalar,
+                                             kAudioDevicePropertyScopeOutput, channel };
+    if (AudioObjectHasProperty(device, &candidate)) out[count++] = candidate;
+  }
+  return count;
 }
 
+// The loudest channel, so a device left unbalanced by something else still reads as
+// what you can actually hear rather than as its quietest side.
 static Float32 get_volume(AudioDeviceID device) {
-  AudioObjectPropertyAddress address;
-  if (!volume_address(device, &address)) return -1.0f;
-  Float32 value = 0;
-  UInt32 size = sizeof(value);
-  if (AudioObjectGetPropertyData(device, &address, 0, NULL, &size, &value) != noErr) return -1.0f;
-  return value;
+  AudioObjectPropertyAddress addresses[MAX_VOLUME_ELEMENTS];
+  UInt32 count = volume_addresses(device, addresses);
+  Float32 loudest = -1.0f;
+  for (UInt32 i = 0; i < count; ++i) {
+    Float32 value = 0;
+    UInt32 size = sizeof(value);
+    if (AudioObjectGetPropertyData(device, &addresses[i], 0, NULL, &size, &value) == noErr
+        && value > loudest) {
+      loudest = value;
+    }
+  }
+  return loudest;
 }
 
 static void print_volume(void) {
@@ -260,8 +277,9 @@ static void print_volume(void) {
 // Accepts an absolute level or a relative "+5" / "-5".
 static void set_volume(const char* arg) {
   AudioDeviceID device = effective_output_device();
-  AudioObjectPropertyAddress address;
-  if (!volume_address(device, &address)) return;
+  AudioObjectPropertyAddress addresses[MAX_VOLUME_ELEMENTS];
+  UInt32 count = volume_addresses(device, addresses);
+  if (count == 0) return;
 
   long requested = strtol(arg, NULL, 10);
   Float32 target;
@@ -275,7 +293,9 @@ static void set_volume(const char* arg) {
   if (target < 0.0f) target = 0.0f;
   if (target > 1.0f) target = 1.0f;
 
-  AudioObjectSetPropertyData(device, &address, 0, NULL, sizeof(target), &target);
+  for (UInt32 i = 0; i < count; ++i) {
+    AudioObjectSetPropertyData(device, &addresses[i], 0, NULL, sizeof(target), &target);
+  }
 
   // Unmute when raising from zero, so the level actually becomes audible.
   AudioObjectPropertyAddress mute = { kAudioDevicePropertyMute, kAudioDevicePropertyScopeOutput,
