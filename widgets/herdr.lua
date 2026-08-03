@@ -460,8 +460,12 @@ return function(ctx)
             local alias, mine = host.name, epoch
             sbar.exec(host_cmd(host), function(result)
                 if mine ~= epoch then return end
-                local agents = type(result) == "table" and result.result and result.result.agents
-                if not agents then return end
+                -- A reply that parsed to nothing counts as zero rather than being skipped.
+                -- Keeping the last number would let a host that stops answering — ssh
+                -- down, herdr restarted, a reply too slow for the poll — nag about a block
+                -- that ended long ago, and a stuck alert is worse than a late one.
+                local agents = type(result) == "table" and result.result
+                    and result.result.agents or {}
                 local blocked = 0
                 for _, a in ipairs(agents) do
                     if a.agent_status == "blocked" then blocked = blocked + 1 end
@@ -501,8 +505,13 @@ return function(ctx)
             target = env.HOST
             hosts = resolve()
             fleet = {}
+            -- Counts freeze the moment a host stops being watched, so the host you just
+            -- came back from still claims whatever it claimed when you left it — which is
+            -- exactly the block you went there to clear. Drop them and ask again.
+            blocked_away = {}
             epoch = epoch + 1
             poll()
+            poll_away()
         end)
     end
     poll()
