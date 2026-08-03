@@ -40,6 +40,12 @@ return {
         enabled = true,      -- agent fleet (needs the herdr CLI)
         host = "selected",
         poll = 5,            -- seconds
+        -- Alert on blocked agents running on hosts the chip is NOT showing. true watches
+        -- every host the servers picker found; a list narrows it. Costs one ssh per host
+        -- per watch_poll, so it is off unless asked for.
+        watch = true,
+        -- watch = { "prod-1", "build-box" },
+        watch_poll = 30,     -- seconds
         -- tab = 1,          -- pin the terminal tab; found on its own unless set
         -- hosts is the untargeted list, ignored while host = "selected"
         -- hosts = { { name = "local" }, { name = "prod-1", ssh = "deevs@prod-1" } },

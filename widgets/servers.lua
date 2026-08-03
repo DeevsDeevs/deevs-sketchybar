@@ -55,6 +55,10 @@ return function(ctx)
     end
     if #hosts == 0 then return end
 
+    -- Before "local" joins the list: herdr reads this to watch hosts it is not showing,
+    -- and every entry there has to be something ssh can reach.
+    ctx.server_hosts = hosts
+
     -- Selector mode: the chip names one target instead of reporting every host at once.
     local select = cfg.select == true
     if select then

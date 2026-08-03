@@ -14,6 +14,28 @@ return function(ctx)
     end
     local hosts = resolve()
 
+    -- Polled whichever host the chip is showing: an agent waiting on a server you are not
+    -- looking at is the one you would otherwise miss. Keyed by ssh alias, which is what
+    -- host_change carries, so the entry for the current target filters itself out.
+    --
+    -- Read on every call, not once: the servers widget loads after this one, so its
+    -- discovered aliases do not exist yet while this file is running.
+    local blocked_away = {}
+    local function watched()
+        -- Untargeted, every configured host is already on the chip and in the popup.
+        if not target or not conf.watch then return {} end
+        local aliases = conf.watch
+        if aliases == true then
+            aliases = {}
+            for _, h in ipairs(ctx.server_hosts or {}) do aliases[#aliases + 1] = h.alias end
+        end
+        local out = {}
+        for _, alias in ipairs(aliases) do
+            if alias ~= target then out[#out + 1] = { name = alias, ssh = alias } end
+        end
+        return out
+    end
+
     -- herdr drives 22 agent kinds; only these two have a mark worth showing, and the rest
     -- get a neutral robot rather than being mislabelled as pi.
     local GLYPH = { pi = "π", claude = "✳" }
@@ -107,7 +129,10 @@ return function(ctx)
                 if not lead or outranks(a, lead) then lead = a end
             end
         end
-        if total == 0 then
+        for alias, n in pairs(blocked_away) do
+            if alias ~= target then blocked = blocked + n end
+        end
+        if total == 0 and blocked == 0 then
             chip:set({ drawing = false })
             backdrop:set({ drawing = false })
             return
@@ -278,6 +303,41 @@ return function(ctx)
             return name
         end
 
+        -- Hosts the chip is not showing. A count is the whole message — the agents behind
+        -- it are a poll away on the far side — so clicking retargets the bar to go look.
+        local away = {}
+        for _, h in ipairs(watched()) do
+            local blocked = blocked_away[h.ssh] or 0
+            if blocked > 0 then away[#away + 1] = { host = h, blocked = blocked } end
+        end
+        if #away > 0 then
+            local sum = 0
+            for _, e in ipairs(away) do sum = sum + e.blocked end
+            section("needs you elsewhere", sum, p.bad)
+            for _, e in ipairs(away) do
+                n = n + 1
+                sbar.add("item", "herdr.row." .. n, {
+                    position = "popup." .. chip.name,
+                    icon = { string = "◆", color = p.bad, font = { size = 9.0 },
+                        padding_left = 12, padding_right = 7 },
+                    label = {
+                        string = string.format("%s   %d", e.host.name or e.host.ssh, e.blocked),
+                        color = p.fg,
+                        font = { size = 11.0 },
+                        padding_left = 0,
+                        padding_right = 14,
+                    },
+                    background = { color = ctx.with_alpha(p.bad, 0.17),
+                        corner_radius = 6, height = 20 },
+                    -- Retargeting is the servers picker's job, and herdr only listens to it
+                    -- while it follows: pinned to one host, the row has nowhere to send you.
+                    click_script = follows and string.format(
+                        "sketchybar --set herdr popup.drawing=off --trigger host_change HOST=%s",
+                        ctx.shell_quote(e.host.ssh)) or nil,
+                })
+            end
+        end
+
         -- Anything waiting on you, then anything moving. Both are few, so both get a
         -- full row with the project spelled out.
         for _, status in ipairs({ "blocked", "working" }) do
@@ -385,7 +445,35 @@ return function(ctx)
         end
     end
 
-    chip:subscribe("routine", poll)
+    -- A watched host costs a whole ssh round trip, so it runs on its own slower cadence,
+    -- counted off the chip's routine rather than paying for a second timer item.
+    local function poll_away()
+        for _, host in ipairs(watched()) do
+            local alias, mine = host.ssh, epoch
+            sbar.exec(host_cmd(host), function(result)
+                if mine ~= epoch then return end
+                local agents = type(result) == "table" and result.result and result.result.agents
+                if not agents then return end
+                local blocked = 0
+                for _, a in ipairs(agents) do
+                    if a.agent_status == "blocked" then blocked = blocked + 1 end
+                end
+                blocked_away[alias] = blocked
+                render_chip()
+            end)
+        end
+    end
+
+    local every = math.max(1, math.floor((conf.watch_poll or 30) / (conf.poll or 5)))
+    -- One short of the cadence, so the first sweep lands on the next tick instead of a
+    -- full watch_poll after a reload. Not here: the servers widget has not loaded yet.
+    local ticks = every - 1
+
+    chip:subscribe("routine", function()
+        poll()
+        ticks = ticks + 1
+        if ticks % every == 0 then poll_away() end
+    end)
     chip:subscribe("forced", poll)
     chip:subscribe("mouse.clicked", function()
         render_popup()
