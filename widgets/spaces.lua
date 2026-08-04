@@ -92,15 +92,26 @@ return function(ctx)
         entry.item:set({ label = icon_line })
     end)
 
-    -- Nothing looks selected after a reload: space_change is only sent when a space
-    -- actually changes, and `--trigger space_change` carries no SELECTED to act on. So
-    -- ask yabai once for the space each display is showing and light those.
-    sbar.exec("yabai -m query --spaces 2>/dev/null", function(result)
-        if type(result) ~= "table" then return end
-        for _, space in ipairs(result) do
-            if space["is-visible"] then highlight(tonumber(space.index), true) end
-        end
-    end)
+    -- Resync from yabai, which is the authority on what each display is showing.
+    --
+    -- Needed because space_change alone leaves chips lit that should not be. It is only
+    -- sent when a space actually changes, so nothing looks selected after a reload; and
+    -- plugging a display in renumbers spaces underneath the items, which can leave a
+    -- chip highlighted for a space that is no longer visible anywhere with no further
+    -- event coming to clear it. Every space is written, not just the visible ones —
+    -- lighting the right chip is useless if the stale one stays lit beside it.
+    local function resync()
+        sbar.exec("yabai -m query --spaces 2>/dev/null", function(result)
+            if type(result) ~= "table" then return end
+            local visible = {}
+            for _, space in ipairs(result) do
+                if space["is-visible"] then visible[tonumber(space.index)] = true end
+            end
+            for index in pairs(spaces) do highlight(index, visible[index] == true) end
+        end)
+    end
+    resync()
+    observer:subscribe("display_change", resync)
 
     for i, entry in pairs(spaces) do
         table.insert(ctx.groups.left, entry.item.name)
