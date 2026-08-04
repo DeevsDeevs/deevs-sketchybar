@@ -137,11 +137,26 @@ return function(ctx)
     local WANT_W = TEXT_W
     local applied = 0            -- text width currently set, so fit() can subtract it
     local last_item = (eq_bars and eq_bars[EQ_N] or cover or title).name
-    local function fit()
-        if SIDE ~= "left" then return end
-        sbar.exec(string.format("%s %s %d",
+    -- Where the notch starts is a property of the screen layout, not of anything that
+    -- moves, but finding it costs an osascript that imports AppKit — 69ms of the 71ms
+    -- a refit used to spend, on every space change. Resolved once and handed to the
+    -- measuring script, then resolved again only when the displays actually change.
+    local notch_left
+    local fit
+    local function locate_notch()
+        sbar.exec(ctx.shell_quote(ctx.helper("notch.sh")), function(out)
+            notch_left = tostring(out):match("%d+")
+            -- The first answer arrives after the bar is already built, so measure once
+            -- it lands rather than leaving the text at its unfitted width.
+            if notch_left then fit() end
+        end)
+    end
+
+    function fit()
+        if SIDE ~= "left" or not notch_left then return end
+        sbar.exec(string.format("%s %s %d %s",
             ctx.shell_quote(ctx.helper("media_fit.sh")),
-            ctx.shell_quote(last_item), applied), function(out)
+            ctx.shell_quote(last_item), applied, notch_left), function(out)
             local px = tonumber(tostring(out):match("%d+"))
             if px then TEXT_W = math.min(WANT_W, px) end
         end)
@@ -249,6 +264,11 @@ return function(ctx)
     start_sonar()
     fit()
     anchor:subscribe("space_change", fit)
+    -- The only thing that can move the notch: a display added, removed or made primary.
+    anchor:subscribe("display_change", function()
+        locate_notch()
+    end)
+    locate_notch()
     anchor:subscribe("system_woke", function()
         start_stream()
         start_sonar()
