@@ -41,9 +41,21 @@ return function(ctx)
         slider:set({ slider = { percentage = vol } })
     end
 
+    -- The poll only earns its keep while output is routed through the aggregate, which
+    -- reports no usable level of its own. On a plain device macOS's own volume_change
+    -- is accurate, and asking anyway costs a process that initialises the audio HAL —
+    -- about 37ms, every interval, to confirm what the last event already said. The
+    -- helper reports which case it is, so the interval follows it.
+    local polling = nil
     local function refresh()
         sbar.exec(string.format("%s volume", helper), function(out)
-            render(tonumber(tostring(out):match("%d+")))
+            local reply = tostring(out)
+            render(tonumber(reply:match("%d+")))
+            local routed = reply:match("routed") ~= nil
+            if routed ~= polling then
+                polling = routed
+                volume:set({ update_freq = routed and 5 or 0 })
+            end
         end)
     end
     -- A routed aggregate reports 0 to macOS, so trust the helper instead.
@@ -81,4 +93,11 @@ return function(ctx)
     end)
 
     volume:subscribe("mouse.exited.global", close_popup)
+
+    -- Last, after the mouse subscriptions: subscribing an item to mouse events *after*
+    -- a custom event silently drops the custom one and it simply never fires.
+    -- Picking a device in the popup is the one thing that turns routing on or off, so
+    -- this is what lets the poll interval follow it.
+    sbar.add("event", "audio_route_changed")
+    volume:subscribe("audio_route_changed", refresh)
 end

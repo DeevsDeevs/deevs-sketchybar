@@ -214,10 +214,28 @@ static AudioDeviceID create_aggregate(CFStringRef device_uid, CFStringRef loopba
   return aggregate;
 }
 
+static bool is_aggregate_device(AudioDeviceID device) {
+  if (device == kAudioObjectUnknown) return false;
+  AudioObjectPropertyAddress address = { kAudioDevicePropertyTransportType,
+                                         kAudioObjectPropertyScopeGlobal,
+                                         kAudioObjectPropertyElementMain };
+  UInt32 transport = 0, size = sizeof(transport);
+  if (AudioObjectGetPropertyData(device, &address, 0, NULL, &size, &transport) != noErr)
+    return false;
+  return transport == kAudioDeviceTransportTypeAggregate;
+}
+
 // Aggregates expose no volume, so volume always targets the real device
 // underneath — that keeps a working level control while routing is active.
+//
+// The transport type is checked first because find_our_aggregate() walks every device
+// on the system and copies a UID string from each, which is most of what reading the
+// volume used to cost — 39ms, paid every poll, usually to discover that the default
+// output is an ordinary device and none of it mattered.
 static AudioDeviceID effective_output_device(void) {
   AudioDeviceID current = get_default_output_device();
+  if (!is_aggregate_device(current)) return current;
+
   AudioDeviceID aggregate = find_our_aggregate();
   if (aggregate != kAudioObjectUnknown && current == aggregate) {
     AudioDeviceID main = aggregate_main_device(aggregate);
@@ -268,10 +286,16 @@ static Float32 get_volume(AudioDeviceID device) {
   return loudest;
 }
 
+// Reports whether routing is on as a second word, because that is exactly when macOS
+// stops reporting a usable level of its own and the caller has to keep asking. On a
+// plain device the system's own volume_change notification is accurate, so the caller
+// can stop polling — and each poll costs a process that initialises the audio HAL.
 static void print_volume(void) {
+  bool routed = is_aggregate_device(get_default_output_device());
+  const char* suffix = routed ? " routed" : "";
   Float32 value = get_volume(effective_output_device());
-  if (value < 0) { printf("--\n"); return; }
-  printf("%d\n", (int)(value * 100.0f + 0.5f));
+  if (value < 0) { printf("--%s\n", suffix); return; }
+  printf("%d%s\n", (int)(value * 100.0f + 0.5f), suffix);
 }
 
 // Accepts an absolute level or a relative "+5" / "-5".
