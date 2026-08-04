@@ -3,7 +3,7 @@ return function(ctx)
     local p = ctx.palette
     local conf = type(ctx.config.caffeine) == "table" and ctx.config.caffeine or {}
     local helper = ctx.shell_quote(ctx.helper("caffeine.sh"))
-    local durations = conf.durations or { 15, 30, 60, 120 }
+    local durations = conf.durations or { 60, 480, 1440, 2880 }
 
     local function pretty(minutes)
         if minutes < 60 then return string.format("%dm", minutes) end
@@ -35,6 +35,10 @@ return function(ctx)
 
     -- `left` is nil for an indefinite hold: there is nothing to count down, so the cup
     -- lights on its own and the routine stays off until a timed hold needs it.
+    --
+    -- Half a minute, not a second: the label only ever shows minutes, and a 48h hold
+    -- ticking every second would be six figures' worth of shells to redraw the same
+    -- text. The cost of that is the hold ending up to 30s before the cup notices.
     local function render(left)
         caffeine:set({
             icon = { color = awake and p.accent or ctx.with_alpha(p.fg, 0.5) },
@@ -42,7 +46,7 @@ return function(ctx)
                 drawing = left ~= nil,
                 string = left and pretty(math.max(1, math.ceil(left / 60))) or "",
             },
-            update_freq = left and 1 or 0,
+            update_freq = left and 30 or 0,
         })
     end
 
