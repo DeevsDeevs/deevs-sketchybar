@@ -56,7 +56,7 @@ function M.load(ctx)
         end
     end
 
-    drawn = add({ "calendar", "battery", "volume", "mic", "vpn", "lang", "weather" })
+    drawn = add({ "calendar", "battery", "caffeine", "volume", "mic", "vpn", "lang", "weather" })
 
     cluster({ "surf" })
     cluster({ "session" })

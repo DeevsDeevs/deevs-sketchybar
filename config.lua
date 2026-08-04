@@ -65,6 +65,14 @@ return {
         volume_keys = true,  -- required with auto_route: the aggregate has no hardware volume
     },
     battery  = { enabled = true },
+
+    -- Click the cup to hold the Mac awake, click again to let it sleep. Right-click for
+    -- a timed hold; these are the choices it offers, in minutes.
+    caffeine = {
+        enabled   = true,
+        durations = { 15, 30, 60, 120 },
+    },
+
     calendar = { enabled = true },
 
     vpn  = { enabled = false },  -- shield via scutil
