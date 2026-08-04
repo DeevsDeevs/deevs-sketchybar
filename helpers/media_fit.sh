@@ -5,10 +5,8 @@
 #   $1  name of the cluster's last item (the one nearest the notch)
 #   $2  px of text width currently applied, so an expanded cluster measures the
 #       same as a collapsed one
-#   $3  left edge of the notch, optional. Finding it costs an osascript that imports
-#       AppKit, about 69ms, and it only moves when the displays do — so the caller
-#       resolves it once and passes it here. Looked up when absent, which keeps this
-#       script runnable on its own.
+#   $3  left edge of the notch, optional — looking it up costs ~69ms, so the caller
+#       resolves it once. Looked up here when absent, to stay runnable on its own.
 #
 # Measured rather than estimated: the cover and the eq bars do not occupy what their
 # configured widths suggest, and the room left of the notch shrinks with every space

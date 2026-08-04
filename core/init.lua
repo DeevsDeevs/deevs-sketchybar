@@ -15,20 +15,15 @@ local ctx = {
 local follows_active, active_items = {}, {}
 local on_active = { associated_display = "active" }
 
--- Declared by every widget that owns a popup. Sketchybar gives an item a single
--- popup window with a single anchor, and every bar rewrites that anchor while it is
--- open, so with two bars the dropdown lands on whichever redrew last — the wrong
--- display, in that bar's coordinates. `display = active` leaves exactly one bar
--- laying the widget out, so the popup opens where you are working.
+-- Declared by every widget that owns a popup. An item gets one popup window with one
+-- anchor, and every bar rewrites that anchor while it is open, so with two bars the
+-- dropdown lands wherever redrew last. `display = active` leaves one bar laying the
+-- widget out, so it opens where you are working.
 --
--- The whole widget follows, not only the item holding the popup: session is
--- icon+time+name and media is cover+artist+title, and moving one part alone leaves
--- a chip with a hole in it. Its popup rows have to come too, or the popup opens
--- empty. Widgets without a popup stay on every display.
---
--- Declared rather than detected from the "popup.<host>" rows: herdr builds its rows
--- inside its click handler, so there is nothing to detect until the popup is already
--- opening. Marking the widget instead catches every item it ever adds.
+-- The whole widget follows, not just the item holding the popup — moving one part of
+-- session or media leaves a chip with a hole in it — and its popup rows come too, or
+-- the popup opens empty. Declared rather than detected, because herdr builds its rows
+-- inside its click handler and there is nothing to detect until the popup is opening.
 function ctx.owns_popup()
     if ctx.current_widget then follows_active[ctx.current_widget] = true end
 end
@@ -149,14 +144,10 @@ for name, members in pairs(ctx.clusters) do
     for _, member in ipairs(members) do all = all and active_items[member] end
     if all then chip:set(on_active) end
 end
--- A popup belongs to the bar that opened it. Move focus to another display and the
--- widget follows, leaving the popup behind as an empty frame nothing can close —
--- the item it hangs off is no longer on that bar to receive the click or the exit.
--- display_change fires whenever the active display changes, so shut them there.
---
--- Set through the API, never by shelling out to the sketchybar CLI: invoked from
--- inside the config process it finds the running instance's lock file and exits with
--- "could not acquire lock-file" instead of delivering the message.
+-- A popup belongs to the bar that opened it, so moving focus leaves it behind as an
+-- empty frame nothing can close: the item it hangs off is no longer on that bar to
+-- receive the click. Set through the API rather than the CLI — from inside the config
+-- process that can hit the running instance's lock file instead of delivering.
 local popup_watch = sbar.add("item", { drawing = false, updates = true })
 popup_watch:subscribe("display_change", function()
     for name in pairs(active_items) do

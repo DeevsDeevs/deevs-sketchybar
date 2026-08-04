@@ -19,9 +19,8 @@ return function(ctx)
 
     local TEXT_W = media.text_width or 150
 
-    -- `side = "left"` puts the cluster left of the notch. Items lay out away from
-    -- their own edge, so the left side needs the creation order reversed: text,
-    -- cover, eq — see the ordering note at each block below.
+    -- `side = "left"` puts the cluster left of the notch; see the ordering note at the
+    -- layout below for what that does to creation order.
     local SIDE = media.side == "left" and "left" or "right"
     local GROUP = ctx.groups[SIDE]
     -- Text that fits hugs the cover rather than stranding itself at the far edge of
@@ -93,8 +92,6 @@ return function(ctx)
         end
     end
 
-    -- Cover before the text on the right, after it on the left: either way the hover
-    -- expansion grows away from the cover rather than dragging it out from under the pointer.
     local function add_cover()
         if not media.cover then return end
         cover = place(sbar.add("item", "media.cover", {
@@ -137,10 +134,9 @@ return function(ctx)
     local WANT_W = TEXT_W
     local applied = 0            -- text width currently set, so fit() can subtract it
     local last_item = (eq_bars and eq_bars[EQ_N] or cover or title).name
-    -- Where the notch starts is a property of the screen layout, not of anything that
-    -- moves, but finding it costs an osascript that imports AppKit — 69ms of the 71ms
-    -- a refit used to spend, on every space change. Resolved once and handed to the
-    -- measuring script, then resolved again only when the displays actually change.
+    -- Finding the notch costs an osascript that imports AppKit — 69ms of the 71ms a refit
+    -- spent, on every space change — and it only moves when the displays do. Resolved
+    -- once, handed to the measuring script, refreshed on display_change.
     local notch_left
     local fit
     local function locate_notch()

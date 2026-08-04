@@ -10,7 +10,7 @@ end
 function M.load(ctx)
     local c = ctx.config
 
-    -- Names every item a widget creates, so `popup_display` can move a whole widget
+    -- Names every item a widget creates, so `ctx.owns_popup` can move the whole widget
     -- rather than the single item that happens to own the popup.
     local function load(name)
         ctx.current_widget = name

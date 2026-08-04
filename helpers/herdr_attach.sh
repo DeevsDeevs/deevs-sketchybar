@@ -41,10 +41,9 @@ app_ancestor() {
     return 1
 }
 
-# Already connected? Raise that window rather than dialling the host a second time.
-# Found by its client process, not by a tab title: `open -na` hands every remote window
-# an app instance of its own holding a single window, and a lone window has no tab bar
-# for AX to report, so a title search matched nothing and each click opened one more.
+# Already connected? Raise it rather than dialling again. Found by client process, not
+# tab title: `open -na` gives each window its own app instance, and a lone window has no
+# tab bar for AX to report, so a title search matched nothing and opened one more.
 for pid in $(pgrep -f "herdr --remote $host" 2>/dev/null); do
     found="$(app_ancestor "$pid")" || continue
     term="${found%% *}"

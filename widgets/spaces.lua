@@ -9,10 +9,9 @@ return function(ctx)
     local max = conf.max or 20
     local show_icons = conf.icons ~= false
 
-    -- Deliberately unconditional. Skipping the repaints that look redundant measured no
-    -- cheaper — the cost of a space event is sketchybar's own window enumeration, not
-    -- these messages — and it meant trusting a cached idea of what each item looks like,
-    -- which sketchybar can invalidate itself when spaces are created or destroyed.
+    -- Unconditional on purpose: skipping the repaints that look redundant measured no
+    -- cheaper, and caching what each item looks like goes stale when sketchybar
+    -- re-associates them across a space being created or destroyed.
     local function highlight(index, selected)
         local entry = spaces[index]
         if not entry then return end
@@ -55,30 +54,25 @@ return function(ctx)
         })
         spaces[i] = { item = space, accent = accent }
 
-        -- Every space item hears every space change, so a switch used to redraw all of
-        -- them when only two ever differ: the one being left and the one being entered.
         space:subscribe("space_change", function(env)
             highlight(i, env.SELECTED == "true")
         end)
 
-        -- string.format, never `..`: concatenation can drop an operand here and build a
-        -- `yabai -m space --focus` with no argument.
+        -- string.format, never `..`: concatenation can drop an operand and build a
+        -- `--focus` with no argument.
         space:subscribe("mouse.clicked", function(env)
             sbar.exec(string.format("yabai -m space --focus %s", env.SID))
         end)
     end
 
     local observer = sbar.add("item", { drawing = false, updates = true })
-    -- One trigger fans out to a call per space, so a single window opening costs a full
-    -- sweep of them. Both halves of that are answered here: the icons are built into a
-    -- stable string, and an unchanged one is dropped before it becomes a message.
+    -- One trigger fans out to a call per space, so a single window opening sweeps them all.
     observer:subscribe("space_windows_change", function(env)
         local entry = spaces[tonumber(env.INFO.space)]
         if not entry then return end
 
-        -- Sorted, because `pairs` order is not stable: the same set of apps could hash
-        -- into a different order on the next event, which both shuffles the icons on
-        -- screen and defeats the comparison below.
+        -- Sorted because `pairs` order is not stable: the same apps can hash differently
+        -- next time, which visibly reshuffles the icons and defeats the check below.
         local names = {}
         for app in pairs(env.INFO.apps) do names[#names + 1] = app end
         table.sort(names)
@@ -92,14 +86,10 @@ return function(ctx)
         entry.item:set({ label = icon_line })
     end)
 
-    -- Resync from yabai, which is the authority on what each display is showing.
-    --
-    -- Needed because space_change alone leaves chips lit that should not be. It is only
-    -- sent when a space actually changes, so nothing looks selected after a reload; and
-    -- plugging a display in renumbers spaces underneath the items, which can leave a
-    -- chip highlighted for a space that is no longer visible anywhere with no further
-    -- event coming to clear it. Every space is written, not just the visible ones —
-    -- lighting the right chip is useless if the stale one stays lit beside it.
+    -- space_change is only sent when a space actually changes, so nothing looks selected
+    -- after a reload, and plugging a display in can strand a chip lit for a space that is
+    -- no longer visible. Every space is written, not just the visible ones: lighting the
+    -- right chip is useless if the stale one stays lit beside it.
     local function resync()
         sbar.exec("yabai -m query --spaces 2>/dev/null", function(result)
             if type(result) ~= "table" then return end
@@ -113,7 +103,7 @@ return function(ctx)
     resync()
     observer:subscribe("display_change", resync)
 
-    for i, entry in pairs(spaces) do
+    for _, entry in pairs(spaces) do
         table.insert(ctx.groups.left, entry.item.name)
     end
 end

@@ -41,11 +41,9 @@ return function(ctx)
         slider:set({ slider = { percentage = vol } })
     end
 
-    -- The poll only earns its keep while output is routed through the aggregate, which
-    -- reports no usable level of its own. On a plain device macOS's own volume_change
-    -- is accurate, and asking anyway costs a process that initialises the audio HAL —
-    -- about 37ms, every interval, to confirm what the last event already said. The
-    -- helper reports which case it is, so the interval follows it.
+    -- Polling only earns its keep while routed through the aggregate, which reports no
+    -- usable level of its own; on a plain device volume_change is accurate and asking
+    -- anyway costs ~37ms of audio-HAL startup per interval. The helper says which case.
     local polling = nil
     local function refresh()
         sbar.exec(string.format("%s volume", helper), function(out)
@@ -75,10 +73,9 @@ return function(ctx)
     local spawn = ctx.detached(ctx.shell_quote(ctx.helper("volume_keys/bin/volume_keys")))
     if (ctx.config.audio or {}).volume_keys then
         sbar.exec(string.format("%s; %s", reap, spawn))
-        -- Started again if it is gone, rather than reaped and restarted: a live tap is
-        -- worth keeping, and it has to be sketchybar that spawns it — macOS gives the
-        -- Accessibility grant to the spawning process, so a supervisor outside the bar
-        -- would run it with a tap that never fires.
+        -- Restarted only if gone, so a live tap is left alone. It must be sketchybar
+        -- doing the spawning: macOS grants Accessibility to the spawning process, so a
+        -- supervisor outside the bar gets a tap that never fires.
         volume:subscribe("system_woke", function()
             sbar.exec(string.format("pgrep -x volume_keys >/dev/null 2>&1 || { %s }", spawn))
         end)
@@ -102,10 +99,8 @@ return function(ctx)
 
     volume:subscribe("mouse.exited.global", close_popup)
 
-    -- Last, after the mouse subscriptions: subscribing an item to mouse events *after*
-    -- a custom event silently drops the custom one and it simply never fires.
-    -- Picking a device in the popup is the one thing that turns routing on or off, so
-    -- this is what lets the poll interval follow it.
+    -- Last, after the mouse subscriptions: subscribing to mouse events *after* a custom
+    -- event silently drops the custom one. Picking a device is what flips routing.
     sbar.add("event", "audio_route_changed")
     volume:subscribe("audio_route_changed", refresh)
 end

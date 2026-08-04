@@ -14,21 +14,17 @@ return function(ctx)
     end
     local hosts = resolve()
 
-    -- Polled whichever host the chip is showing: an agent waiting on a server you are not
-    -- looking at is the one you would otherwise miss. Keyed by ssh alias, which is what
-    -- host_change carries, so the entry for the current target filters itself out.
-    --
-    -- Read on every call, not once: the servers widget loads after this one, so its
-    -- discovered aliases do not exist yet while this file is running.
+    -- Watched whichever host the chip is showing, since an agent waiting on a server you
+    -- are not looking at is the one you would miss. Read on every call, not once: the
+    -- servers widget loads after this one, so its aliases do not exist yet here.
     local blocked_away = {}
     local function watched()
         -- Untargeted, every configured host is already on the chip and in the popup.
         if not target or not conf.watch then return {} end
         local aliases = conf.watch
         if aliases == true then
-            -- This machine is a host like any other: select a server and the agents
-            -- waiting here are exactly the ones that go quiet. Named outright because
-            -- the servers list only carries a "local" entry in selector mode.
+            -- Named outright because the servers list only carries "local" in selector
+            -- mode, and select a server and the agents waiting here are what go quiet.
             aliases = { "local" }
             for _, h in ipairs(ctx.server_hosts or {}) do
                 if h.alias ~= "local" then aliases[#aliases + 1] = h.alias end
@@ -80,14 +76,13 @@ return function(ctx)
     table.insert(ctx.groups.right, chip.name)
     local backdrop = ctx.chip("herdr.chip", { chip.name })
 
-    -- A red number on a 12pt chip is easy to walk past, so a blocked agent tints the
-    -- whole slab and breathes the glyph on top of it. Only while something is actually
-    -- waiting on you: a bar that moves all day stops meaning anything.
+    -- A red number on a 12pt chip is easy to walk past, so a blocked agent tints the slab
+    -- and breathes the glyph — only while something is actually waiting on you.
     local ALERT_TINT, ALERT_REST = 0.18, 0.45
     local alerting, lit = false, false
-    -- Its own item, because the chip polls herdr on `poll` seconds and a breath wants
-    -- to be one. The breath animates the chip and the tint is set flat on the bracket:
-    -- sbar.animate has no effect on a bracket's background, the colour simply stays put.
+    -- Its own item: the chip polls on `poll` seconds and a breath wants its own second.
+    -- The tint is set flat rather than animated — sbar.animate does nothing to a
+    -- bracket's background, the colour simply stays put.
     local pulse = sbar.add("item", "herdr.pulse", {
         drawing = false,
         updates = true,
@@ -145,9 +140,8 @@ return function(ctx)
             backdrop:set({ drawing = false })
             return
         end
-        -- One number, coloured. U+26A1 and the alert glyph both fall back off
-        -- JetBrainsMono and render oversized on their own baseline; at this size the
-        -- colour carries the state anyway and the popup has the breakdown.
+        -- One number, coloured. U+26A1 and the alert glyph fall back off JetBrainsMono
+        -- and render oversized; at this size colour carries the state anyway.
         local count, color = total, ctx.with_alpha(p.fg, 0.7)
         if blocked > 0 then
             count, color = blocked, p.bad
@@ -229,11 +223,9 @@ return function(ctx)
         return clip(title, 38)
     end
 
-    -- Everything the popup draws, in one string. Rebuilding it costs about 25 items on
-    -- the wire and blocks the bar while it happens, and most opens follow a poll that
-    -- changed nothing — so an identical fleet skips the rebuild and reuses the rows that
-    -- are already there. Expanded groups are left out on purpose: their click handler
-    -- flips the rows it already built, so the state on screen is right either way.
+    -- Everything the popup draws, in one string. A rebuild is ~25 items on the wire and
+    -- blocks the bar, and most opens follow a poll that changed nothing. Expanded groups
+    -- are left out on purpose: their click handler flips rows it already built.
     local function signature()
         local parts = {}
         for _, host in ipairs(hosts) do
