@@ -72,8 +72,16 @@ return function(ctx)
     end)
     -- Reap and spawn in ONE shell: as two execs the pkill can land after the spawn and kill the tap it was meant to replace.
     local reap = "pkill -x volume_keys >/dev/null 2>&1"
+    local spawn = ctx.detached(ctx.shell_quote(ctx.helper("volume_keys/bin/volume_keys")))
     if (ctx.config.audio or {}).volume_keys then
-        sbar.exec(string.format("%s; %s", reap, ctx.detached(ctx.shell_quote(ctx.helper("volume_keys/bin/volume_keys")))))
+        sbar.exec(string.format("%s; %s", reap, spawn))
+        -- Started again if it is gone, rather than reaped and restarted: a live tap is
+        -- worth keeping, and it has to be sketchybar that spawns it — macOS gives the
+        -- Accessibility grant to the spawning process, so a supervisor outside the bar
+        -- would run it with a tap that never fires.
+        volume:subscribe("system_woke", function()
+            sbar.exec(string.format("pgrep -x volume_keys >/dev/null 2>&1 || { %s }", spawn))
+        end)
     else
         sbar.exec(reap)
     end
