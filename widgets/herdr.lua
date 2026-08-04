@@ -4,7 +4,7 @@ return function(ctx)
     local conf = type(ctx.config.herdr) == "table" and ctx.config.herdr or {}
     local fixed, follows = ctx.host_of(conf)
     local target = fixed or (follows and ((ctx.config.servers or {}).default or "local")) or nil
-    local fleet = {}
+    local fleet, tab_labels = {}, {}
 
     -- A target collapses the fleet to one host; untargeted, the configured list stands.
     local function resolve()
@@ -104,11 +104,11 @@ return function(ctx)
             ctx.shell_quote(host.ssh), args)
     end
 
-    local function host_cmd(host)
+    local function host_cmd(host, args)
         if host.ssh then
-            return string.format("%s 2>/dev/null", over_ssh(host, "agent list"))
+            return string.format("%s 2>/dev/null", over_ssh(host, args))
         end
-        return "herdr agent list 2>/dev/null"
+        return string.format("herdr %s 2>/dev/null", args)
     end
 
     -- The chip wears the mark of whichever agent it is reporting on: whatever is blocked,
@@ -212,15 +212,23 @@ return function(ctx)
         return out
     end
 
-    -- "π - tracing" beside a "tracing" heading says nothing twice; only then fall back to
-    -- the pane, which is all that distinguishes sibling agents in one project.
-    local function row_text(a)
+    -- The pane is on every row: it is the only thing that tells sibling agents in one
+    -- project apart, and the one thing you need to find the agent once you get there.
+    -- "π - tracing" beside a "tracing" heading says nothing twice, so that row is the
+    -- pane alone rather than the title repeated.
+    local function row_text(a, host)
+        -- The tab's own name, which is what you called it. herdr numbers tabs nobody
+        -- renamed, and "3" tells you less than the pane does.
+        local label = (tab_labels[host.name] or {})[a.tab_id]
+        if not label or label:match("^%d+$") then
+            label = (a.pane_id or ""):match("[^:]+$") or "?"
+        end
         local title = a.terminal_title_stripped or a.terminal_title or ""
         local tail = title:match("^%S+%s+%-%s+(.+)$")
         if title == "" or tail == leaf_of(a) then
-            return (a.pane_id or ""):match("[^:]+$") or "?"
+            return label
         end
-        return clip(title, 38)
+        return string.format("%s  %s", label, clip(title, 34))
     end
 
     -- Everything the popup draws, in one string. A rebuild is ~25 items on the wire and
@@ -230,11 +238,13 @@ return function(ctx)
         local parts = {}
         for _, host in ipairs(hosts) do
             parts[#parts + 1] = host.name
+            local labels = tab_labels[host.name] or {}
             for _, a in ipairs(fleet[host.name] or {}) do
-                parts[#parts + 1] = string.format("%s|%s|%s|%s|%s|%s",
+                parts[#parts + 1] = string.format("%s|%s|%s|%s|%s|%s|%s",
                     tostring(a.agent), tostring(a.agent_status), tostring(a.cwd),
                     tostring(a.pane_id), tostring(a.focused),
-                    tostring(a.terminal_title_stripped or a.terminal_title))
+                    tostring(a.terminal_title_stripped or a.terminal_title),
+                    tostring(labels[a.tab_id]))
             end
         end
         for _, host in ipairs(watched()) do
@@ -294,7 +304,7 @@ return function(ctx)
                 },
                 label = {
                     string = string.format("%s %s%s", glyph_of(a.agent),
-                        row_text(a), suffix or ""),
+                        row_text(a, host), suffix or ""),
                     color = (blocked or working) and p.fg or ctx.with_alpha(p.fg, 0.72),
                     font = { size = 11.0 },
                     padding_left = 0,
@@ -456,13 +466,19 @@ return function(ctx)
     -- the new one. Bumped only on retarget, so a slow reply from the current host still lands.
     local epoch = 0
 
+    -- The snapshot rather than `agent list`: it carries the tabs alongside the agents, so
+    -- their names cost no extra round trip — which over ssh is the whole cost.
     local function poll()
         local mine = epoch
         for _, host in ipairs(hosts) do
-            sbar.exec(host_cmd(host), function(result)
+            sbar.exec(host_cmd(host, "api snapshot"), function(result)
                 if mine ~= epoch then return end
-                if type(result) == "table" and result.result and result.result.agents then
-                    fleet[host.name] = result.result.agents
+                local snap = type(result) == "table" and result.result and result.result.snapshot
+                if snap and snap.agents then
+                    fleet[host.name] = snap.agents
+                    local labels = {}
+                    for _, tab in ipairs(snap.tabs or {}) do labels[tab.tab_id] = tab.label end
+                    tab_labels[host.name] = labels
                 elseif not host.ssh then
                     fleet[host.name] = {}
                 end
@@ -476,7 +492,8 @@ return function(ctx)
     local function poll_away()
         for _, host in ipairs(watched()) do
             local alias, mine = host.name, epoch
-            sbar.exec(host_cmd(host), function(result)
+            -- `agent list`, not the snapshot: a watched host only contributes a count.
+            sbar.exec(host_cmd(host, "agent list"), function(result)
                 if mine ~= epoch then return end
                 -- A reply that parsed to nothing counts as zero rather than being skipped.
                 -- Keeping the last number would let a host that stops answering — ssh
@@ -522,7 +539,7 @@ return function(ctx)
             if not env.HOST or env.HOST == "" or env.HOST == target then return end
             target = env.HOST
             hosts = resolve()
-            fleet = {}
+            fleet, tab_labels = {}, {}
             -- Counts freeze the moment a host stops being watched, so the host you just
             -- came back from still claims whatever it claimed when you left it — which is
             -- exactly the block you went there to clear. Drop them and ask again.
