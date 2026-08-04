@@ -8,10 +8,15 @@ MENUS="$DIR/menus/bin/menus"
 STATE="${TMPDIR:-/tmp}/sketchybar-menu-mode"
 MAX="${MENU_SLOTS:-12}"
 
+# The refresher re-reads the menu bar on every app switch, which is only worth doing
+# while the menus are on screen. Left subscribed it still spawns this script for every
+# app you switch to — ~9ms just to read a file and learn there is nothing to do — so
+# its updates follow the mode instead of staying on.
 hide_menus() {
   local args=() i
   for ((i = 1; i <= MAX; i++)); do args+=(--set "menu.$i" drawing=off); done
   args+=(--set '/space\..*/' drawing=on)
+  args+=(--set menus.refresher updates=off)
   sketchybar "${args[@]}" >/dev/null 2>&1
   rm -f "$STATE"
 }
@@ -31,6 +36,7 @@ show_menus() {
   fi
 
   args=(--set '/space\..*/' drawing=off)
+  args+=(--set menus.refresher updates=on)
   for line in "${names[@]}"; do
     args+=(--set "menu.$i" label="$line" drawing=on)
     i=$((i + 1))
