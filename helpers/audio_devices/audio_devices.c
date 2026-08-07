@@ -135,6 +135,27 @@ static AudioDeviceID find_device_by_uid(CFStringRef uid) {
   return found;
 }
 
+static void enable_loopback(CFStringRef uid) {
+  AudioDeviceID device = find_device_by_uid(uid);
+  if (device == kAudioObjectUnknown) return;
+
+  AudioObjectPropertyAddress volume = { kAudioDevicePropertyVolumeScalar,
+                                        kAudioDevicePropertyScopeOutput,
+                                        kAudioObjectPropertyElementMain };
+  Float32 full = 1.0f;
+  if (AudioObjectHasProperty(device, &volume)) {
+    AudioObjectSetPropertyData(device, &volume, 0, NULL, sizeof(full), &full);
+  }
+
+  AudioObjectPropertyAddress mute = { kAudioDevicePropertyMute,
+                                      kAudioDevicePropertyScopeOutput,
+                                      kAudioObjectPropertyElementMain };
+  UInt32 off = 0;
+  if (AudioObjectHasProperty(device, &mute)) {
+    AudioObjectSetPropertyData(device, &mute, 0, NULL, sizeof(off), &off);
+  }
+}
+
 // First device whose name contains LOOPBACK_MATCH.
 static CFStringRef copy_loopback_uid(void) {
   AudioDeviceID* devices = NULL;
@@ -380,6 +401,7 @@ static void set_output_device_from_arg(const char* arg, bool route) {
 
   AudioDeviceID target = device_id;
   if (route && device_uid && loopback_uid) {
+    enable_loopback(loopback_uid);
     AudioDeviceID aggregate = create_aggregate(device_uid, loopback_uid);
     if (aggregate != kAudioObjectUnknown) target = aggregate;
   }
