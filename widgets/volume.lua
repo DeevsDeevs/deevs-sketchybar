@@ -63,6 +63,25 @@ return function(ctx)
     volume:subscribe({ "routine", "forced" }, refresh)
     refresh()
 
+    if auto_route then
+        sbar.exec(string.format("%s volume", helper), function(out)
+            if tostring(out):match("routed") then return end
+            sbar.exec(string.format("%s list", helper), function(devices)
+                local device_id
+                for line in tostring(devices):gmatch("[^\r\n]+") do
+                    local current, id = line:match("^(%d)\t(%d+)\t")
+                    device_id = device_id or id
+                    if current == "1" then device_id = id break end
+                end
+                if device_id then
+                    sbar.exec(string.format("%s set %s --route", helper, device_id), function()
+                        sbar.exec("sketchybar --trigger audio_route_changed")
+                    end)
+                end
+            end)
+        end)
+    end
+
     volume:subscribe("mouse.scrolled", function(env)
         local delta = env.INFO.delta
         if not (env.INFO.modifier == "ctrl") then delta = delta * 10.0 end
