@@ -80,7 +80,7 @@ return {
         up = 1.5,                -- metres at which the chip lights up
     },
 
-    -- hosts from ~/.ssh/config via `ssh -G`; filter = "pattern" or hosts = { ... } to narrow
+    -- hosts are herdr's saved machines: `herdr machine add <ssh-host>`
     servers = {
         enabled = true,
         select = true,       -- chip picks the target host; without it, a dot per host

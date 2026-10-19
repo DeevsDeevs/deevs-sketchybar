@@ -45,7 +45,7 @@ Always on: the brand glyph and the front-app name.
 | `session` | pomodoro ring and countdown | needs Session.app |
 | `herdr` | AI agent fleet, local plus herdr's saved machines | `poll`, `remote_poll`, `tab` |
 | `repo` | repo · branch · dirty count · CI dot | `path`, `ci` (needs `gh`) |
-| `servers` | reachability dots, or a host picker | `select`, `default`, `filter`, `hosts` |
+| `servers` | reachability dots, or a host picker, for herdr's saved machines | `select`, `default` |
 | `weather` | glyph and temperature | `place` |
 | `surf` | wave height and period for one break | `lat`, `lon`, `up` |
 | `caffeine` | hold the Mac awake, timed or not | `durations` |
@@ -64,12 +64,12 @@ servers = { enabled = true, select = true, default = "local" },
 system  = { host = "selected" },
 ```
 
-`host` takes `"local"` (or absent), `"selected"`, or an ssh alias. Hosts come from
-`~/.ssh/config` — `Include`, `Match` and `Port` are honoured, `ProxyJump`-only hosts are
-skipped.
+`host` takes `"local"` (or absent), `"selected"`, or an ssh alias. The picker lists
+herdr's saved machines (`herdr machine add <ssh-host>`) and asks `herdr machine status`
+whether each is up, so hosts behind a ProxyCommand or Tailscale work too.
 
-herdr does not follow the picker: it lists every machine saved with
-`herdr machine add <ssh-host>` alongside local, in one popup.
+herdr itself does not follow the picker: its popup lists local and every saved machine
+at once.
 
 ## Sonar
 
