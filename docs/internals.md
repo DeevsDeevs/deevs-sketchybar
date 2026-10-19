@@ -33,13 +33,10 @@ A local agent switches herdr to that pane, moves to the space its terminal is on
 raises that terminal — the exact process, since a terminal often runs several and
 activating the bundle picks the wrong one.
 
-A remote one focuses the agent on its host and brings up that host's herdr, opening it
-in its own terminal window if it is not already running and raising the existing one if
-it is. That window is deliberately not a tab inside the local herdr: herdr refuses to
-start inside a herdr-managed pane — *"nested herdr is disabled by default"* — and the
-experimental flag that lifts the restriction would leave both sessions answering to the
-same prefix key, with no send-prefix binding to separate them. The window is found again
-by the client process running inside it, not by its title.
+A remote one lives in the same local herdr window, as a saved machine. The click
+focuses the agent on its server with `herdr --machine <id> agent focus` and raises the
+window; herdr has no API to select a machine in a running client, so picking it in the
+sidebar is the last step.
 
 When herdr shares a terminal window with other tabs, raising the window would land on
 whichever tab was last on top, so the click finds herdr's tab first. herdr publishes no
@@ -56,20 +53,18 @@ tells you less than the pane does, so those fall back to it.
 
 ## Remote hosts
 
-Remote herdr runs through `$SHELL -ic` rather than a bare `ssh host herdr …`. Version
-managers (devbox, nix, mise, asdf) put the binary on `PATH` from the interactive rc,
-which plain ssh never sources — without this the host reports "no agents" while agents
-are running on it. Your rc must not print to stdout.
+Remote agents come from herdr's saved machines (`herdr machine list --json`), each read
+with `herdr --machine <id> api snapshot` every `herdr.remote_poll` seconds. herdr owns
+the ssh connection and finds its remote binary on its own; a devbox or nix install that
+is only on the interactive `PATH` needs a `~/.local/bin/herdr` link. The list is re-read
+on every sweep, so `machine add`/`disable` shows up without a reload, and a machine that
+stops answering is listed as unreachable rather than idle.
 
 Remote perf is **polled, not pushed**. Local CPU and network come from C event providers
 that fire every 2s; nothing on another machine can push into your bar, so a remote
 target is one `ssh` per `poll` seconds reading `/proc`. The host needs `/proc` (any
 Linux) and key-based ssh. When a poll fails the numbers blank to `···` rather than
 holding the last value — an unreachable host and an idle one must not read the same.
-
-`herdr.watch` polls hosts the chip is *not* showing, for blocked agents only, on a
-slower cadence. An agent waiting on a server you are not looking at is the one you would
-otherwise miss.
 
 ## Location
 

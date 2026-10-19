@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 # Focuses a herdr pane, then puts the terminal showing it in front of you.
-#   $1  pane id (optional — herdr_attach.sh calls this purely to raise)
+#   $1  pane id (optional — a remote agent's row calls this purely to raise)
 #   $2  tab index to force (optional — skips discovery entirely)
 #
 # `herdr agent focus` switches the pane inside herdr's own session and stops there,

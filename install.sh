@@ -47,7 +47,7 @@ command -v cava >/dev/null || warn "cava missing → sonar EQ off"
 if ! system_profiler SPAudioDataType 2>/dev/null | grep -q BlackHole; then
   warn "BlackHole missing → EQ would follow the microphone (brew install blackhole-2ch)"
 fi
-command -v herdr >/dev/null || warn "herdr missing → herd widget off"
+command -v herdr >/dev/null || warn "herdr missing → herdr widget off"
 command -v yabai >/dev/null || warn "yabai missing → spaces fall back to static 1..10"
 
 say "done — run: sketchybar --reload (or start it however you run it)"

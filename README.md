@@ -43,7 +43,7 @@ Always on: the brand glyph and the front-app name.
 | `media` | now playing, album art, spectrum EQ | `cover`, `sonar`, `side`, `text_width`, `eq_bars`, `whitelist` |
 | `system` | CPU sparkline · RAM · network | `host`, `poll` |
 | `session` | pomodoro ring and countdown | needs Session.app |
-| `herdr` | AI agent fleet, local and over SSH | `host`, `hosts`, `poll`, `watch` |
+| `herdr` | AI agent fleet, local plus herdr's saved machines | `poll`, `remote_poll`, `tab` |
 | `repo` | repo · branch · dirty count · CI dot | `path`, `ci` (needs `gh`) |
 | `servers` | reachability dots, or a host picker | `select`, `default`, `filter`, `hosts` |
 | `weather` | glyph and temperature | `place` |
@@ -57,17 +57,19 @@ Always on: the brand glyph and the front-app name.
 
 With `servers.select = true` the servers chip becomes a picker, and any widget set to
 `host = "selected"` follows it. Pick `prod-1` and the system cluster shows that
-machine's load while herdr lists its agents.
+machine's load.
 
 ```lua
 servers = { enabled = true, select = true, default = "local" },
 system  = { host = "selected" },
-herdr   = { host = "selected" },
 ```
 
 `host` takes `"local"` (or absent), `"selected"`, or an ssh alias. Hosts come from
 `~/.ssh/config` — `Include`, `Match` and `Port` are honoured, `ProxyJump`-only hosts are
-skipped. Clicking an agent jumps to it, locally or over ssh.
+skipped.
+
+herdr does not follow the picker: it lists every machine saved with
+`herdr machine add <ssh-host>` alongside local, in one popup.
 
 ## Sonar
 

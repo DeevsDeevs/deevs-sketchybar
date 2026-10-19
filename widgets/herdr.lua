@@ -2,43 +2,11 @@ return function(ctx)
     ctx.owns_popup()
     local p = ctx.palette
     local conf = type(ctx.config.herdr) == "table" and ctx.config.herdr or {}
-    local fixed, follows = ctx.host_of(conf)
-    local target = fixed or (follows and ((ctx.config.servers or {}).default or "local")) or nil
-    local fleet, tab_labels = {}, {}
+    local fleet, tab_labels, offline = {}, {}, {}
 
-    -- A target collapses the fleet to one host; untargeted, the configured list stands.
-    local function resolve()
-        if not target then return conf.hosts or { { name = "local" } } end
-        if target == "local" then return { { name = "local" } } end
-        return { { name = target, ssh = target } }
-    end
-    local hosts = resolve()
-
-    -- Watched whichever host the chip is showing, since an agent waiting on a server you
-    -- are not looking at is the one you would miss. Read on every call, not once: the
-    -- servers widget loads after this one, so its aliases do not exist yet here.
-    local blocked_away = {}
-    local function watched()
-        -- Untargeted, every configured host is already on the chip and in the popup.
-        if not target or not conf.watch then return {} end
-        local aliases = conf.watch
-        if aliases == true then
-            -- Named outright because the servers list only carries "local" in selector
-            -- mode, and select a server and the agents waiting here are what go quiet.
-            aliases = { "local" }
-            for _, h in ipairs(ctx.server_hosts or {}) do
-                if h.alias ~= "local" then aliases[#aliases + 1] = h.alias end
-            end
-        end
-        local out = {}
-        for _, alias in ipairs(aliases) do
-            -- No ssh field means run herdr here, which is what host_cmd branches on.
-            if alias ~= target then
-                out[#out + 1] = { name = alias, ssh = alias ~= "local" and alias or nil }
-            end
-        end
-        return out
-    end
+    -- Local first, then every enabled saved machine (`herdr machine add`). herdr owns
+    -- the SSH side, so a machine is addressed by its profile id, never by an ssh alias.
+    local hosts = { { name = "local" } }
 
     -- herdr drives 22 agent kinds; only these two have a mark worth showing, and the rest
     -- get a neutral robot rather than being mislabelled as pi.
@@ -97,16 +65,9 @@ return function(ctx)
         end)
     end)
 
-    -- string.format, never `..`: concatenation drops an operand and builds
-    -- `-o ConnectTimeout=4'host'`, which ssh rejects with empty stdout.
-    local function over_ssh(host, args)
-        return string.format("%s %s %s", ctx.shell_quote(ctx.helper("herdr_remote.sh")),
-            ctx.shell_quote(host.ssh), args)
-    end
-
     local function host_cmd(host, args)
-        if host.ssh then
-            return string.format("%s 2>/dev/null", over_ssh(host, args))
+        if host.machine then
+            return string.format("herdr --machine %s %s 2>/dev/null", ctx.shell_quote(host.machine), args)
         end
         return string.format("herdr %s 2>/dev/null", args)
     end
@@ -131,9 +92,6 @@ return function(ctx)
                 if a.agent_status == "blocked" then blocked = blocked + 1 end
                 if not lead or outranks(a, lead) then lead = a end
             end
-        end
-        for alias, n in pairs(blocked_away) do
-            if alias ~= target then blocked = blocked + n end
         end
         if total == 0 and blocked == 0 then
             chip:set({ drawing = false })
@@ -247,9 +205,8 @@ return function(ctx)
                     tostring(labels[a.tab_id]))
             end
         end
-        for _, host in ipairs(watched()) do
-            parts[#parts + 1] = string.format("%s=%d", host.name, blocked_away[host.name] or 0)
-        end
+        for name in pairs(offline) do parts[#parts + 1] = name .. "=offline" end
+        table.sort(parts)
         return table.concat(parts, "\n")
     end
 
@@ -286,11 +243,12 @@ return function(ctx)
             local lead = blocked and "◆" or working and "▶" or a.focused and "▸" or "·"
             local lead_color = blocked and p.bad or working and p.accent
                 or a.focused and p.fg or ctx.with_alpha(p.fg, 0.28)
-            -- A remote pane has no local window to raise, so clicking one brings the
-            -- session here instead of only moving focus on the far side.
-            local focus = host.ssh
-                and string.format("%s %s %s", ctx.shell_quote(ctx.helper("herdr_attach.sh")),
-                    ctx.shell_quote(host.ssh), ctx.shell_quote(a.pane_id))
+            -- Remote panes live in the same local window, but no API selects a machine in
+            -- it: focus the pane on its server and raise the window; the sidebar does the rest.
+            local focus = host.machine
+                and string.format("(herdr --machine %s agent focus %s >/dev/null 2>&1 &); %s",
+                    ctx.shell_quote(host.machine), ctx.shell_quote(a.pane_id),
+                    ctx.shell_quote(ctx.helper("herdr_focus.sh")))
                 or string.format("%s %s %s", ctx.shell_quote(ctx.helper("herdr_focus.sh")),
                     ctx.shell_quote(a.pane_id), ctx.shell_quote(conf.tab or ""))
             local props = {
@@ -339,37 +297,22 @@ return function(ctx)
             return name
         end
 
-        -- Hosts the chip is not showing. A count is the whole message — the agents behind
-        -- it are a poll away on the far side — so clicking retargets the bar to go look.
-        local away = {}
-        for _, h in ipairs(watched()) do
-            local blocked = blocked_away[h.name] or 0
-            if blocked > 0 then away[#away + 1] = { host = h, blocked = blocked } end
-        end
-        if #away > 0 then
-            local sum = 0
-            for _, e in ipairs(away) do sum = sum + e.blocked end
-            section("needs you elsewhere", sum, p.bad)
-            for _, e in ipairs(away) do
+        -- A machine that stopped answering has no agents to list, which reads as idle.
+        -- Saying so keeps "nothing running" from being a lie.
+        for _, host in ipairs(hosts) do
+            if offline[host.name] then
                 n = n + 1
                 sbar.add("item", "herdr.row." .. n, {
                     position = "popup." .. chip.name,
-                    icon = { string = "◆", color = p.bad, font = { size = 9.0 },
+                    icon = { string = "!", color = p.bad, font = { size = 9.0 },
                         padding_left = 12, padding_right = 7 },
                     label = {
-                        string = string.format("%s   %d", e.host.name, e.blocked),
-                        color = p.fg,
-                        font = { size = 11.0 },
+                        string = string.format("%s  unreachable", host.name),
+                        color = ctx.with_alpha(p.fg, 0.55),
+                        font = { size = 10.5 },
                         padding_left = 0,
                         padding_right = 14,
                     },
-                    background = { color = ctx.with_alpha(p.bad, 0.17),
-                        corner_radius = 6, height = 20 },
-                    -- Retargeting is the servers picker's job, and herdr only listens to it
-                    -- while it follows: pinned to one host, the row has nowhere to send you.
-                    click_script = follows and string.format(
-                        "sketchybar --set herdr popup.drawing=off --trigger host_change HOST=%s",
-                        ctx.shell_quote(e.host.name)) or nil,
                 })
             end
         end
@@ -462,64 +405,59 @@ return function(ctx)
         end
     end
 
-    -- A reply from the host we just left would land after the reset and be counted into
-    -- the new one. Bumped only on retarget, so a slow reply from the current host still lands.
-    local epoch = 0
-
     -- The snapshot rather than `agent list`: it carries the tabs alongside the agents, so
     -- their names cost no extra round trip — which over ssh is the whole cost.
+    local function poll_host(host)
+        sbar.exec(host_cmd(host, "api snapshot"), function(result)
+            local snap = type(result) == "table" and result.result and result.result.snapshot
+            if snap and snap.agents then
+                fleet[host.name] = snap.agents
+                local labels = {}
+                for _, tab in ipairs(snap.tabs or {}) do labels[tab.tab_id] = tab.label end
+                tab_labels[host.name] = labels
+                offline[host.name] = nil
+            else
+                -- Dropped rather than kept: a host that stops answering would otherwise nag
+                -- about a block that ended long ago, and a stuck alert is worse than a late one.
+                fleet[host.name] = {}
+                if host.machine then offline[host.name] = true end
+            end
+            render_chip()
+        end)
+    end
+
+    -- Re-read on every remote sweep so a machine added or disabled shows up without a reload.
+    local function poll_machines()
+        sbar.exec("herdr machine list --json 2>/dev/null", function(list)
+            local next_hosts, seen = { hosts[1] }, {}
+            for _, m in ipairs(type(list) == "table" and list or {}) do
+                if m.enabled and m.id then
+                    local name = m.label or m.id
+                    seen[name] = true
+                    next_hosts[#next_hosts + 1] = { name = name, machine = m.id }
+                end
+            end
+            for name in pairs(fleet) do
+                if name ~= "local" and not seen[name] then fleet[name], offline[name] = nil, nil end
+            end
+            hosts = next_hosts
+            for i = 2, #hosts do poll_host(hosts[i]) end
+        end)
+    end
+
     local function poll()
-        local mine = epoch
-        for _, host in ipairs(hosts) do
-            sbar.exec(host_cmd(host, "api snapshot"), function(result)
-                if mine ~= epoch then return end
-                local snap = type(result) == "table" and result.result and result.result.snapshot
-                if snap and snap.agents then
-                    fleet[host.name] = snap.agents
-                    local labels = {}
-                    for _, tab in ipairs(snap.tabs or {}) do labels[tab.tab_id] = tab.label end
-                    tab_labels[host.name] = labels
-                elseif not host.ssh then
-                    fleet[host.name] = {}
-                end
-                render_chip()
-            end)
-        end
+        poll_host(hosts[1])
     end
 
-    -- A watched host costs a whole ssh round trip, so it runs on its own slower cadence,
-    -- counted off the chip's routine rather than paying for a second timer item.
-    local function poll_away()
-        for _, host in ipairs(watched()) do
-            local alias, mine = host.name, epoch
-            -- `agent list`, not the snapshot: a watched host only contributes a count.
-            sbar.exec(host_cmd(host, "agent list"), function(result)
-                if mine ~= epoch then return end
-                -- A reply that parsed to nothing counts as zero rather than being skipped.
-                -- Keeping the last number would let a host that stops answering — ssh
-                -- down, herdr restarted, a reply too slow for the poll — nag about a block
-                -- that ended long ago, and a stuck alert is worse than a late one.
-                local agents = type(result) == "table" and result.result
-                    and result.result.agents or {}
-                local blocked = 0
-                for _, a in ipairs(agents) do
-                    if a.agent_status == "blocked" then blocked = blocked + 1 end
-                end
-                blocked_away[alias] = blocked
-                render_chip()
-            end)
-        end
-    end
-
-    local every = math.max(1, math.floor((conf.watch_poll or 30) / (conf.poll or 5)))
-    -- One short of the cadence, so the first sweep lands on the next tick instead of a
-    -- full watch_poll after a reload. Not here: the servers widget has not loaded yet.
-    local ticks = every - 1
+    -- A remote snapshot is a whole ssh round trip (~2s), so machines run on their own
+    -- slower cadence, counted off the chip's routine rather than a second timer item.
+    local every = math.max(1, math.floor((conf.remote_poll or 15) / (conf.poll or 5)))
+    local ticks = 0
 
     chip:subscribe("routine", function()
         poll()
         ticks = ticks + 1
-        if ticks % every == 0 then poll_away() end
+        if ticks % every == 0 then poll_machines() end
     end)
     chip:subscribe("forced", poll)
     chip:subscribe("mouse.clicked", function()
@@ -533,21 +471,6 @@ return function(ctx)
     sbar.add("event", "herdr_render")
     chip:subscribe("herdr_render", render_popup)
 
-    if follows then
-        sbar.add("event", "host_change")
-        chip:subscribe("host_change", function(env)
-            if not env.HOST or env.HOST == "" or env.HOST == target then return end
-            target = env.HOST
-            hosts = resolve()
-            fleet, tab_labels = {}, {}
-            -- Counts freeze the moment a host stops being watched, so the host you just
-            -- came back from still claims whatever it claimed when you left it — which is
-            -- exactly the block you went there to clear. Drop them and ask again.
-            blocked_away = {}
-            epoch = epoch + 1
-            poll()
-            poll_away()
-        end)
-    end
     poll()
+    poll_machines()
 end
